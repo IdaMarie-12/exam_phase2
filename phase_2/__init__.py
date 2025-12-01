@@ -1,13 +1,27 @@
+from __future__ import annotations
+
 """
-Phase 2: Object-oriented delivery simulation backend.
+Phase 2: Object-Oriented Ride-Hailing / Food Delivery Simulation.
 
 This package contains:
-- Core domain models (Point, Request, Driver)
-- Behaviors (DriverBehavior and concrete subclasses)
-- Dispatch policies (DispatchPolicy and concrete subclasses)
-- Mutation rules
-- Request generator
-- DeliverySimulation engine
-- A thin adapter (backend.py) that exposes a procedural API
-  compatible with the teacher's Dispatch UI.
+
+- Core domain model (Point, Request, Driver, constants).
+- Driver behaviors and mutation rules.
+- Dispatch policies and Offer type.
+- Request generator.
+- DeliverySimulation engine.
+- Backend adapter to the teacher's GUI.
+- Metrics plotting utilities.
 """
+
+__all__ = [
+    "model",
+    "behavior",
+    "policies",
+    "mutation",
+    "request_gen",
+    "simulation",
+    "backend",
+    "metrics",
+    "errors",
+]
