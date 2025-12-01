@@ -5,6 +5,25 @@ from typing import Optional, List
 import math
 
 #-----------------------------------
+# Status & Geometry constants
+#-----------------------------------
+
+# Request statuses
+request_waiting = "waiting"
+request_assigned = "assigned"
+request_picked = "picked"
+request_delivered = "delivered"
+request_expired = "expired"
+
+# Driver statuses
+driver_idle = "idle"
+driver_to_pickup = "to_pickup"
+driver_to_dropoff = "to_dropoff"
+
+# Geometry
+target_tolerance = 0.5 # distance threshold for "at target"
+
+#-----------------------------------
 # Point
 #-----------------------------------
 @ dataclass
@@ -14,11 +33,37 @@ class Point:
     x: float
     y: float
 
+    # Distance between self and other
     def distance_to(self, other: Point) -> float:
         """ Return the Euclidean distance to another point. """
         dx = self.x - other.x
         dy = self.y - other.y
         return math.hypot(dx, dy)
+
+    # Vector operations
+    def __add__(self, other: "Point") -> "Point":
+        """ Return a new Point(self.x + other.x, self.y + other.y) """
+        raise NotImplementedError
+
+    def __sub__(self, other: "Point") -> "Point":
+        """ Return a new Point(self.x + other.x, self.y + other.y) """
+        raise NotImplementedError
+
+    def __iadd__(self, other: "Point") -> "Point":
+        """ Update self.x and self.y in place"""
+        raise NotImplementedError
+
+    def __isub__(self, other: "Point") -> "Point":
+        """ Update self.x and self.y in place"""
+        raise NotImplementedError
+
+    def __mul__(self, scalar: float) -> "Point":
+        """ Return new Point(scalar * self.x, scalar * self.y)"""
+        raise NotImplementedError
+
+    def __rmul__(self, scalar: float) -> "Point":
+        """ Delegate to __mul__ """
+        raise NotImplementedError
 
 #-----------------------------------
 # Request
@@ -64,6 +109,19 @@ class Request:
 # Driver
 #-----------------------------------
 @dataclass
+class DriverHistoryEntry:
+    """ One completed trip for a driver"""
+    request_id: int
+    time_assigned: int
+    pickup_time: int
+    dropoff_time: int
+    wait_to_pickup: int
+    total_time_in_system: float
+    trip_distance: float
+    reward: float
+    surge: float
+
+@dataclass
 class Driver:
     """ A driver agent that can move and accept or reject offers. """
     id: int
@@ -72,7 +130,7 @@ class Driver:
     behavior: "DriverBehavior"     # Will be set by the backend when constructing drivers
     status: str = driver_idle
     current_request: Optional[Request] = None
-    history: List[dict] = field(default_factory = list)
+    history: List[DriverHistoryEntry] = field(default_factory=list)
     total_earnings: float = 0.0    # Optional
     last_action_time: int = 0      # Optional
 
