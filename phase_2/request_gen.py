@@ -13,14 +13,14 @@ from phase2.model import Request, Point
 class RequestGenerator:
     """ Generate new requests over time at a given expected rate. """
 
-    rate: float
-    width: int
-    height: int
-    rng: random.Random
-    next_id: int = 0
+    def __init__(self, rate: float, width: int, height: int, seed: int | None = None) -> None:
+        """ Initialize the request generator. """
+        self.rate = rate
+        self.width = width
+        self.height = height
+        self.rng = random.Random(seed)
+        self.next_id = 0
 
     def maybe_generate(self, time: int) -> List[Request]:
-        """ Return a list of newly generated requests for this tick."""
-        new_requests: List[Request] = []
-
-        return new_requests
+        """ Generate new requests over time. """
+        raise NotImplementedError
