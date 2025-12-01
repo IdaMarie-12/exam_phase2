@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from phase2.policies import Offer
 
 #-----------------------------------
-# Driver Decision-Making behavior
+# Base class
 #-----------------------------------
 class DriverBehavior(ABC):
     """ Abstract base class for driver decision-making behavior. """
@@ -28,3 +28,22 @@ class GreedyDistanceBehavior(DriverBehavior):
 #-----------------------------------
 class EarningsMaxBehavior(DriverBehavior):
     """ Accept if reward/time ratio exceeds a threshold. """
+
+#-----------------------------------
+# Lazy Behavior
+#-----------------------------------
+class LazyBehavior(DriverBehavior):
+    """
+    Accept only if:
+        - driver has been idle for at least min_idle_time ticks
+        - pickup distance is not too large
+    """
+
+    def __init__(self, max_pickup_distance: float = 12.0, min_idle_time: int = 5) -> None:
+        """ Initialize the behavior. """
+        self.max_pickup_distance = max_pickup_distance
+        self.min_idle_time = min_idle_time
+
+    def decide(self, driver: Driver, offer: Offer, time: int) -> bool:
+        """ Return True if the driver accepts the offer, False otherwise. """
+        raise NotImplementedError
