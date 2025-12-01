@@ -48,3 +48,23 @@ class GlobalGreedyPolicy(DispatchPolicy):
     def assign(self, drivers: List["Driver"], requests: List["Requests"], time: int) -> List[Tuple["Driver", "Request"]]:
         """ Implement global greedy matching. """
         return []
+
+#-----------------------------------
+# Combined Score Policy (distance + reward)
+#-----------------------------------
+class CombinedScorePolicy(DispatchPolicy):
+    """
+    Combine distance and reward into a single score and match greedily.
+
+    score = w_dist * (1/(1 + distance)) + w_reward * estimated_reward + w_ratio * (estimated_reward / estimated_travel_time)
+    """
+
+    def __init__(self, w_dist: float = 0.4, w_reward: float = 0.3, w_ratio: float = 0.3) -> None:
+        """ Initialize the combined score policy. """
+        self.w_dist = w_dist
+        self.w_reward = w_reward
+        self.w_ratio = w_ratio
+
+    def assign(self, drivers: List[Driver], requests: List[Request], time: int) -> List[Tuple[Driver, Request]]:
+        """ Return proposed (driver, request) pairs for this tick. """
+        raise NotImplementedError
