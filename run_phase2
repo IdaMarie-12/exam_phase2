@@ -1,0 +1,13 @@
+"""
+Entry script for running the Dispatch UI with the Phase 2 OOP backend.
+
+Usage:
+    python run_phase2.py
+"""
+
+from gui.launch import main
+from phase2.backend import backend
+
+
+if __name__ == "__main__":
+    main(backend)
