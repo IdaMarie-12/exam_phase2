@@ -14,7 +14,7 @@ from phase2.request_gen import RequestGenerator
 from phase2.simulation import DeliverySimulation
 
 #-----------------------------------
-# Procedural API functions for the Dispatch UI
+# Adapter functions for the GUI
 #-----------------------------------
 
 def load_drivers:
