@@ -32,6 +32,15 @@ surge_cap = 3.0 # maximum surge multiplier
 @dataclass
 class DeliverySimulation:
     """ Core simulation engine orchestrating drivers, requests and policies. """
+ """ This class orchestrates the entire simulation.
+Attributes:
+– time: int– drivers: list[Driver]
+– requests: list[Request] (including active and completed)
+– dispatch_policy: DispatchPolicy
+– request_generator: RequestGenerator
+– mutation_rule: MutationRule
+– timeout: int (maximum allowed waiting time before expiration)
+– statistics such asserved_count,expired_count,a"""
 
     def __init__(self, drivers: List[Driver], requests: List[Request], dispatch_policy: DispatchPolicy, request_generator: RequestGenerator, mutation_rule: MutationRule, timeout: int, width: int, height: int) -> None:
         """ Initialize the simulation engine. """
@@ -66,20 +75,15 @@ class DeliverySimulation:
     def tick(self) -> None:
         """ Tick the simulation engine by one time step. """
 
-        #  1) time++
-        #  2) generate requests
-        #  3) expire old waiting requests
-        #  4) compute surge factor
-        #  5) collect waiting + idle
-        #  6) policy.assign(...)
-        #  7) build Offers
-        #  8) behaviors decide; collect accepted offers
-        #  9) resolve conflicts
-        # 10) assign requests to drivers
-        # 11) move drivers + handle pickup/dropoff and reward
-        # 12) apply mutation
-        # 13) update averages
-        # 14) append to metrics_history
+        """ Advance the simulation by one time step."""
+        # 1. Generate new requests.
+        # 2. Update waiting times and mark expired requests.
+        # 3. Compute proposed assignments via dispatch_policy.
+        # 4. Convert proposals to offers, ask driver behaviours to accept/reject.
+        # 5. Resolve conflicts and finalise assignments.
+        # 6. Move drivers and handle pickup/dropoff events.
+        # 7. Apply mutation_rule to each driver.
+        # 8. Increment time.
 
         raise NotImplementedError
 
@@ -89,14 +93,13 @@ class DeliverySimulation:
         raise NotImplementedError
 
     # Snapshot & Metrics
-    def get_snapshot(self) -> Dict[str, Any]:
-        """ Return a phase 1 like snapshot for the GUI. """
-
-        #  convert Driver objects to dicts with x,y,driver_id,target_id,...
-        #  pending = active requests (WAITING/ASSIGNED/PICKED)
-        #  dropoffs = coordinates of delivered requests
-
-        raise NotImplementedError
+       def get_snapshot(self) -> dict:
+        """Return a dictionary containing:
+        - list of driver positions and headings,
+        - list of pickup positions (for WAITING/ASSIGNED requests),
+        - list of dropoff positions (for PICKED requests),
+        - statistics (served, expired, average waiting time).
+        Used by the GUI adapter."""
 
     def get_metrics(self) -> Dict[str, Any]:
         """ Return per-tick metrics for the GUI. """
