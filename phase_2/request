@@ -1,0 +1,29 @@
+# ---------------- Request --------------------
+class Request:
+""" Represents a single food-delivery request with pickup and drop-off locations
+ Attributes (minimum):
+ - id: int
+ -  pickup: Point
+ – dropoff: Point
+ - creation_time: int (simulation tick at which the request appeared)
+ - status: str(for example"WAITING","ASSIGNED","PICKED","DELIVERED","EXPIRED")
+ - assigned_driver_id: int | None
+ - wait_time: int (time spent in the system until pickup/delivery)"""
+    # Methods (suggested)
+    def is_active() -> bool:
+        #mangler:  Returns True if the request is still waiting, assigned, or picked (that is, not delivered or expired
+
+    def mark_assigned(driver_id: int) -> None:
+        #mangler
+
+    def mark_picked(t: int) -> None:
+        #mangler
+
+    def mark_delivered(t: int) -> None:
+        # mangler
+
+    def mark_expired(t: int) -> None:
+        #mangler
+
+    def update_wait(current_time: int) -> None:
+        #mangler: Updates wait_time according to current_time
