@@ -9,25 +9,31 @@ if TYPE_CHECKING:
 #-----------------------------------
 # Base class
 #-----------------------------------
-class DriverBehavior(ABC):
-    """ Abstract base class for driver decision-making behavior. """
-
-    @abstractmethod
-    def decide(self, driver: Driver, offer: Offer, time: int) -> bool:
-        """ Return True if the driver accepts the offer, False otherwise."""
+class DriverBehaviour:
+"""  An abstract base class encoding how a driver decides whether to accept an offer.
+You must implement at least two distinct behaviours and ensure that Driver can be constructed
+with any behaviour and can change behaviour at runtime."""
+    def decide(self,
+               driver: Driver,
+               offer, Offer,
+               time: int) -> bool:
+        """Return True if the driver accepts the offer, False otherwise"""
         raise NotImplementedError
+
 
 #-----------------------------------
 # Greedy Behavior
 #-----------------------------------
 class GreedyDistanceBehavior(DriverBehavior):
     """ Accept if the distance to pickup is below a threshold. """
+     #mangler:  accept if the distance to the pickup is below a given threshold.
 
 #-----------------------------------
 # Earning Max Behavior
 #-----------------------------------
 class EarningsMaxBehavior(DriverBehavior):
     """ Accept if reward/time ratio exceeds a threshold. """
+     #mangler:  accept if the ratio estimated reward divided by travel time is above a threshold.
 
 #-----------------------------------
 # Lazy Behavior
@@ -38,6 +44,7 @@ class LazyBehavior(DriverBehavior):
         - driver has been idle for at least min_idle_time ticks
         - pickup distance is not too large
     """
+    #mangler: accept only if the request is close and the driver has been idle for longer than a configurable number of ticks.
 
     def __init__(self, max_pickup_distance: float = 12.0, min_idle_time: int = 5) -> None:
         """ Initialize the behavior. """
