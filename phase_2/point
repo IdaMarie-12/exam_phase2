@@ -1,0 +1,26 @@
+# ------------- Point ---------------
+class Point:
+"""A simple value class representing a position on the map
+  Attributes:   – x: float
+                – y: float
+This class is intended to be used throughout the positions’ evolution."""
+    def distance_to(other: Point) -> float:
+        #mangler, Euclidean distance (har vi denne i help)?
+
+    def __add__():
+        #mangler
+
+    def __sub__():
+        #mangler
+
+    def __iadd__():
+        #mangler
+
+    def __isub__():
+        #mangler
+
+    def __mul__():
+        #mangler skal defineres både med multiplications for int og float
+
+    def __rmul__():
+        #mangler skal defineres både med multiplications for int og float
