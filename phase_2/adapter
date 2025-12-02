@@ -1,0 +1,14 @@
+# --------------------- Adapter functions ---------------------
+""" As in Part I, the GUI will interact with your backend through a small set of functions. At a minimum,
+ you must provide functions (in a separate module) that create and manipulate a DeliverySimulation
+ instance.  The exact function signatures will be given in the project repository, and will mirror the Part I
+ interface as closely as possible. Your task is to construct and manage the DeliverySimulation
+ object behind these functions"""
+    def init_simulation( ... params...) -> None:
+        #mangler
+
+    def step_simulation() -> tuple[int, dict]:
+        #mangler
+
+    def get_plot_data() -> dict:
+        #mangler: returns positions needed for plotting. (obs, ikke sikkert at der skal stå -> dict!!)
