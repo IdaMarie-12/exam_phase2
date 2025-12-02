@@ -10,30 +10,26 @@ if TYPE_CHECKING:
 #-----------------------------------
 # Offer
 #-----------------------------------
-@dataclass
 class Offer:
-    """ A proposed pairing between a driver and request, with estimated values. """
-    driver: Driver
-    request: Request
-    estimated_travel_time: float
-    estimated_reward: float
-    pickup_distance: float
+"""A simple data object describing a proposal from the dispatcher to a driver.
+ Attributes (suggested):
+ – driver: Driver
+ – request: Request
+ – estimated_travel_time: float
+ – estimated_reward: float (if you choose a reward model) """
 
 #-----------------------------------
 # Dispatch Policy
 #-----------------------------------
-class DispatchPolicy(ABC):
-    """ Abstract base class for dispatch strategies. """
-    @abstractmethod
-    def assign(self, driver: List["Driver"], requests: List[Request], time: int) -> List[Tuple["Driver", "Request"]]:
-        """ Return proposed (driver, request) pairs for this tick. """
-        raise NotImplementedError
+class DispatchPolicy:
+    #mangler
 
 #-----------------------------------
 # Nearest Neighbor Policy
 #-----------------------------------
 class NearestNeighborPolicy(DispatchPolicy):
     """ Match each waiting request  to the nearest idle driver. """
+    # repeatedly match the closest idle driver to the closest waiting request.
 
     def assign(self, driver: List["Driver"], requests: List[Request], time: int) -> List[Tuple["Driver", "Request"]]:
         """ Implement nearest-neighbor logic. """
@@ -44,6 +40,7 @@ class NearestNeighborPolicy(DispatchPolicy):
 #-----------------------------------
 class GlobalGreedyPolicy(DispatchPolicy):
     """ Build all (idle driver, waiting request) pairs, sort by distance, match greedily. """
+     # build all (idle driver, waiting request) pairs, sort by distance, and match greedily while avoiding reuse of drivers and requests
 
     def assign(self, drivers: List["Driver"], requests: List["Requests"], time: int) -> List[Tuple["Driver", "Request"]]:
         """ Implement global greedy matching. """
