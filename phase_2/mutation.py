@@ -10,12 +10,14 @@ if TYPE_CHECKING:
 #-----------------------------------
 # Mutation Rule
 #-----------------------------------
-class MutationRule(ABC):
-    """ Abstract base class for behavior mutation rules. """
-
-    @abstractmethod
-    def maybe_mutate(self, driver: "Driver", time: int) -> None:
-        """ Possible change the driver's behavior based on performance. """
+class MutationRule:
+"""  Models how drivers change their behaviour over time.
+Responsibility: inspect a driver (and possibly global statistics) and decide whether to update its
+behaviour or behaviour parameters.
+You must implement at least one non-trivial mutation rule and demonstrate that drivers can
+ change behaviour during a simulation run."""
+    def maybe_mutate(self, driver: Driver, time: int) -> None:
+        """Possibly change the driver's behaviour based on performance"""
         raise NotImplementedError
 
 #-----------------------------------
@@ -25,6 +27,8 @@ class MutationRule(ABC):
 @dataclass
 class PerformanceMutationRule(MutationRule):
     """ Change behavior if recent performance is below a threshold. """
+    #mangler:  if the driver’s average earnings or served requests in the last N trips is below a threshold,
+    #change from a picky to a more greedy behaviour.
 
     def __init__(self, window_size: int = 5, min_avg_earning: float = 8.0, max_speed: float = 2.5, explore_prob: float = 0.02) -> None:
         """ Initialize the mutation rule. """
@@ -33,3 +37,6 @@ class PerformanceMutationRule(MutationRule):
     def maybe_mutate(self, driver: "Driver", time: int) -> None:
         """ Implement mutation logic. """
         raise NotImplementedError
+
+class ExplorationMutation(MutationRule):
+    #mangler: with a small fixed probability, randomly switch to another behaviour.
