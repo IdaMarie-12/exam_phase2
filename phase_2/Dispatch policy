@@ -1,0 +1,20 @@
+# -------------- Dispatch Policy ---------------
+class DispatchPolicy:
+    ...
+
+class NearestNeighbour(DispatchPolicy):
+    # repeatedly match the closest idle driver to the closest waiting request.
+    ...
+
+class GlobalGreedy(DispatchPolicy):
+    # build all (idle driver, waiting request) pairs, sort by distance, and match greedily while avoiding reuse of drivers and requests
+    ...
+
+# -------------------- Offer --------------------------
+class Offer:
+"""A simple data object describing a proposal from the dispatcher to a driver.
+ Attributes (suggested):
+ – driver: Driver
+ – request: Request
+ – estimated_travel_time: float
+ – estimated_reward: float (if you choose a reward model) """
