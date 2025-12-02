@@ -11,7 +11,19 @@ from phase2.model import Request, Point
 #-----------------------------------
 @dataclass
 class RequestGenerator:
-    """ Generate new requests over time at a given expected rate. """
+"""The arrival of new requests should follow a fixed average rate (as in Part I), but now modelled as a
+separate object.
+Attributes (suggested):
+– rate: float (expected number of new requests per tick),
+– a random number generator,
+– next_id: int (for request identifiers)
+– map boundaries (width and height)."""
+    def maybe_generate(self, time: int) -> list[Request]:
+        """Called once per tick. Draws, according to a user's defined rule, and returns N new Request
+        objects whose creation_time is 'time' and whose pickup/dropoff points
+        are valid positions in the map.
+        """
+
 
     def __init__(self, rate: float, width: int, height: int, seed: int | None = None) -> None:
         """ Initialize the request generator. """
@@ -20,7 +32,3 @@ class RequestGenerator:
         self.height = height
         self.rng = random.Random(seed)
         self.next_id = 0
-
-    def maybe_generate(self, time: int) -> List[Request]:
-        """ Generate new requests over time. """
-        raise NotImplementedError
