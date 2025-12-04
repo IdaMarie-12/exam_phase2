@@ -30,45 +30,15 @@ class Request:
         self.status = Request.PICKED
         self.wait_time = int(t - self.creation_time)
 
-""" Represents a single food-delivery request with pickup and drop-off locations
- Attributes (minimum):
- - id: int
- -  pickup: Point
- – dropoff: Point
- - creation_time: int (simulation tick at which the request appeared)
- - status: str(for example"WAITING","ASSIGNED","PICKED","DELIVERED","EXPIRED")
- - assigned_driver_id: int | None
- - wait_time: int (time spent in the system until pickup/delivery)"""
-    # Methods (suggested)
-    def mark_assigned(driver_id: int) -> None:
-        #mangler
+    def mark_delivered(self, t: int) -> None:
+        self.status = Request.DELIVERED
 
-    def mark_picked(t: int) -> None:
-        #mangler
+    def mark_expired(self, t: int) -> None:
+        self.status = Request.EXPIRED
 
-    def mark_delivered(t: int) -> None:
-        # mangler
+    def update_wait(self, current_time: int) -> None:
+        if self.status in (Request.WAITING, Request.ASSIGNED):
+            self.wait_time = int(current_time - self.creation_time)
 
-    def mark_expired(t: int) -> None:
-        #mangler
-
-    def update_wait(current_time: int) -> None:
-        #mangler: Updates wait_time according to current_time
-
-
-
-def mark_delivered(self, t: int) -> None:
-self.status = Request.DELIVERED
-
-
-def mark_expired(self, t: int) -> None:
-self.status = Request.EXPIRED
-
-
-def update_wait(self, current_time: int) -> None:
-if self.status in (Request.WAITING, Request.ASSIGNED):
-self.wait_time = int(current_time - self.creation_time)
-
-
-def __repr__(self) -> str:
-return f"Request(id={self.id}, status={self.status}, pickup={self.pickup})"
+    def __repr__(self):
+        return f"Request(id={self.id}, status={self.status}, wait={self.wait_time}, pickup={self.pickup})"
