@@ -7,7 +7,19 @@ import math                           # Provides mathematical functions such as 
 class Point:
     x: float   # x-coordinate
     y: float   # y-coordinate
+"""
+    A class that represents a point in a two-dimensional coordinate system.
 
+    Attributes:
+        x (float): The x-coordinate of the point.
+        y (float): The y-coordinate of the point.
+
+    The class supports:
+        - computing the distance between two points
+        - adding and subtracting points
+        - multiplying a point by a scalar (int or float)
+        - using operators such as +, -, +=, -=, *, and scalar * point
+    """
 
     def distance_to(self, other: "Point") -> float:
         # Difference in x-direction
@@ -51,4 +63,5 @@ class Point:
     def __rmul__(self, scalar: float) -> "Point":
         # Reuse __mul__ to avoid repeating logic
         return self.__mul__(scalar)
+
 
