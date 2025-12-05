@@ -59,9 +59,9 @@ class Point:
         return Point(self.x * scalar, self.y * scalar)
 
 
-
     def __rmul__(self, scalar: float) -> "Point":
         # Reuse __mul__ to avoid repeating logic
         return self.__mul__(scalar)
+
 
 
