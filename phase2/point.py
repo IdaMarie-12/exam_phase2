@@ -5,29 +5,11 @@ import math                           # Provides mathematical functions such as 
 
 @dataclass
 class Point:
-    """
-    A simple class that represents a point in a two-dimensional coordinate system.
-    Attributes:
-        x (float): The x-coordinate of the point.
-        y (float): The y-coordinate of the point.
-    The class supports:
-        - computing the distance between two points
-        - adding and subtracting points
-        - multiplying a point by a scalar (int or float)
-        - using operators such as +, -, +=, -=, *, and scalar * point
-    """
-
     x: float   # x-coordinate
     y: float   # y-coordinate
 
 
     def distance_to(self, other: "Point") -> float:
-        """
-        Compute the Euclidean distance from this point to another point.
-        For two points (x1, y1) and (x2, y2), the distance is:
-                sqrt((x2 - x1)^2 + (y2 - y1)^2)
-        """
-
         # Difference in x-direction
         dx = self.x - other.x
 
@@ -38,81 +20,35 @@ class Point:
         return math.hypot(dx, dy)
 
 
-
     def __add__(self, other: "Point") -> "Point":
-        """
-        Add two points together component-wise.
-        This corresponds to vector addition.
-        """
         # Creates and returns a new Point
         return Point(self.x + other.x, self.y + other.y)
 
 
-
     def __sub__(self, other: "Point") -> "Point":
-        """
-        Subtract another point from this point component-wise.
-        """
         return Point(self.x - other.x, self.y - other.y)
-
-
+        
 
     def __iadd__(self, other: "Point") -> "Point":
-        """
-        In-place addition: modify this point directly instead of creating a new one.
-
-        Example:
-            p = Point(1,1)
-            p += Point(2,3)
-            -> p becomes Point(3,4)
-
-        Returns:
-            Point: The same object (self), but updated.
-        """
         # Modify coordinates directly
         self.x += other.x
         self.y += other.y
-
         # Return the same object instance
         return self
 
 
-
     def __isub__(self, other: "Point") -> "Point":
-        """
-        In-place subtraction: modify this point by subtracting another point.
-
-        Example:
-            p = Point(5,5)
-            p -= Point(1,2)
-            -> p becomes Point(4,3)
-        """
         self.x -= other.x
         self.y -= other.y
         return self
 
 
-
     def __mul__(self, scalar: float) -> "Point":
-        """
-        Multiply this point by a scalar (scale the vector).
-        Example:
-            Point(2,3) * 2 -> Point(4,6)
-        This corresponds to vector scaling.
-        """
         return Point(self.x * scalar, self.y * scalar)
 
 
 
     def __rmul__(self, scalar: float) -> "Point":
-        """
-        Enable scalar * point multiplication (reverse order).
-
-        Example:
-            3 * Point(2,3) -> Point(6,9)
-
-        Python calls this method when the left operand
-        (a number) does not know how to multiply by a Point.
-        """
         # Reuse __mul__ to avoid repeating logic
         return self.__mul__(scalar)
+
