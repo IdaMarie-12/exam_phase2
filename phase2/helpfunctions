@@ -1,3 +1,6 @@
+from .request import RequestStatus
+from .offer import Offer
+
 
     #                  HELPER FUNCTIONS
     def _gen_requests(self):
