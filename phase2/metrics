@@ -1,1 +1,27 @@
+class Metrics:
+    """
+    Global metrics collector for behaviours, used to count how many offers each behaviour
+    accepted or rejected.
+    """
+
+    stats = {}
+
+    @classmethod
+    def record_decision(cls, behaviour, accepted: bool):
+        name = behaviour.__class__.__name__
+        if name not in cls.stats:
+            cls.stats[name] = {"accepted": 0, "rejected": 0}
+
+        if accepted:
+            cls.stats[name]["accepted"] += 1
+        else:
+            cls.stats[name]["rejected"] += 1
+
+    @classmethod
+    def reset(cls):
+        cls.stats = {}
+
+    @classmethod
+    def get_stats(cls):
+        return cls.stats
 
