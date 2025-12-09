@@ -1,5 +1,5 @@
 from .request import RequestStatus
-from .offer import Offer
+from ..offer import Offer
 
 
     #                  HELPER FUNCTIONS

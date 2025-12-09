@@ -1,248 +1,234 @@
+"""
+io_mod.py - Input/Output module for loading and generating simulation entities.
+
+This module provides functions to:
+1. Load drivers and requests from CSV files
+2. Generate random drivers and requests (with Poisson-distributed request arrival)
+3. Support initialization of simulation data
+
+The module does NOT use the csv standard library module. Instead, it manually
+parses CSV files using helpers from helpers_1/load_helper.py for validation.
+
+Generation uses Poisson distribution for realistic request arrival patterns.
+"""
+
 import random
-import os
-from typing import TextIO
-
-"""
-# CSV_validate function 
-"""
-
-
-def CSV_validate(path: str, file_type: str):
-    """
-    Validate and load a CSV file as either driver data or request data.
-    Returns a list of row dictionaries if the file follows the expected format.
-    Raises FileNotFoundError or ValueError if the file is invalid.
-
-    """
-
-    # Ensures file exists
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"File does not exist: {path}")
-
-    data = []  # Creates empty list to store validated rows
-
-    with open(path, newline='',
-              encoding='utf-8') as csvfile:  # Open the CSV file with UTF-8 encoding and no extra newline characters
-        reader = csv.reader(csvfile)  # Create CSV reader to iterate over rows
-        header = next(reader)  # Skippes the header row (first row)
-
-        for line_num, row in enumerate(reader,
-                                       start=2):  # Loop through all rows starting from line 2 because the header is on line 1
-            if not row or all(cell.strip() == "" for cell in row):
-                continue
-
-            # # If the file_type is 'driver', validate driver rows
-            if file_type == "driver":
-                if len(row) < 2 or row[0].strip() == "" or row[1].strip() == "":
-                    raise ValueError(
-                        f"Missing px/py on line {line_num}: {row}")  # Check that driver row has at least x and y values
-                try:
-                    x = float(row[0])  # Convertes x and y to numbers (floats)
-                    y = float(row[1])
-                except ValueError:  # Raises error if conversion fails
-                    raise ValueError(f"Invalid number on line {line_num}: {row}")
-                if x < 0 or y < 0:  # Check that coordinates are not negative
-                    raise ValueError(f"Negative coordinates on line {line_num}: ({x}, {y})")
-
-                # Stores validated driver data in dictionary and add to list
-                data.append({
-                    "x": x,
-                    "y": y,
-                    "speed": 1.0,
-                    "vx": 0.0,
-                    "vy": 0.0,
-                    "target_id": None
-                })
-
-            # If file_type is 'request', validates request rows
-            elif file_type == "request":
-                if len(row) < 5:
-                    raise ValueError(
-                        f"Missing columns on line {line_num}: {row}")  # Checkes that row has at least t, px, py, dx, dy
-                try:
-                    t = float(row[0])  # Convert request values to floats
-                    px = float(row[1])
-                    py = float(row[2])
-                    dx = float(row[3])
-                    dy = float(row[4])
-                except ValueError:
-                    raise ValueError(f"Invalid number on line {line_num}: {row}")
-
-                if t < 0:  # Checkes that time is not negative
-                    raise ValueError(f"Request time {t} out of bounds on line {line_num}")
-
-                for coord, name in zip([px, py, dx, dy], ["px", "py", "dx", "dy"]):
-                    if not (0 <= coord <= 50):  # Checkes that each coordinate lies between 0 and 50
-                        raise ValueError(f"{name} coordinate {coord} out of bounds (0-50) on line {line_num}")
-
-                # Stores validated request row in dictionary and addes to list
-                data.append({
-                    "t": t,
-                    "px": px,
-                    "py": py,
-                    "dx": dx,
-                    "dy": dy
-                })
-
-            # Ensures the file_type is valid
-            else:
-                raise ValueError("file_type must be 'driver' or 'request'")
-
-    return data  # Returns the completed data list
-
-
-"""
-# load drivers
-"""
-import csv
+from helpers_1.load_helper import (
+    read_csv_lines,
+    parse_csv_line,
+    parse_driver_row,
+    parse_request_row,
+)
+from helpers_1.generate_helper import (
+    generate_request_count,
+    create_driver_dict,
+    create_request_dict,
+)
 
 
 def load_drivers(path: str) -> list[dict]:
     """
-    Loads driver records from a CSV file.
-    Assumes file has been validated already.
+    Load driver records from a CSV file.
+    
+    The CSV file should have two columns (x, y) representing initial positions.
+    
+    Parameters:
+        path (str): Path to the drivers CSV file
+        
+    Returns:
+        list[dict]: List of driver dictionaries with keys:
+            - x, y: Initial position
+            - speed: Default speed (1.0)
+            - vx, vy: Initial velocities (0.0)
+            - target_id: Initially None
+            
+    Raises:
+        FileNotFoundError: If file does not exist
+        ValueError: If any row has invalid data or format
+        
+    Example:
+        >>> drivers = load_drivers('data/drivers.csv')
+        >>> len(drivers)
+        10
+        >>> drivers[0]['x']
+        11.0
     """
-    # validates data
-    CSV_validate("data/drivers.csv", "driver")
-
+    lines = read_csv_lines(path)
     drivers = []
-    with open(path, newline='', encoding='utf-8') as csvfile:
-        reader = csv.reader(csvfile)
-        header = next(reader)
-
-        driver_id = 1
-        for line_num, row in enumerate(reader, start=2):  # start=2 because header is line 1
-            # Skippes completely empty lines or lines where all cells are blank
-            if not row or all(cell.strip() == "" for cell in row):
-                continue
-
-            # Converts to float
-            x = float(row[0])
-            y = float(row[1])
-
-            # A driver dictionary with default speed and velocities
-            driver = {
-                "driver_id": driver_id,
-                "x": x,  # Driver a spatial position (x,y)
-                "y": y,
-                "speed": 1.0,  # Default speed for all drivers
-                "vx": 0.0,  # Initial velocity along x-axis
-                "vy": 0.0,  # Initial velocity along y-axis
-                "target_id": None  # No target assigned initially
-            }
-
-            # Adds the driver to the list and increment driver_id
-            drivers.append(driver)
-            driver_id += 1
-
+    
+    for line_num, line in enumerate(lines, start=2):  # Start at 2 (line 1 is skipped for header)
+        row = parse_csv_line(line)
+        
+        if not row:  # Skip empty rows
+            continue
+        
+        driver = parse_driver_row(row, line_num)
+        drivers.append(driver)
+    
     return drivers
-
-
-"""
-load_requests
-"""
 
 
 def load_requests(path: str) -> list[dict]:
     """
-    Loads requests from a CSV file.
-    Assumes file has been validated already.
+    Load request records from a CSV file.
+    
+    The CSV file should have five columns (t, px, py, dx, dy) representing:
+        - t: Time when request appears
+        - px, py: Pickup location
+        - dx, dy: Delivery location
+    
+    Parameters:
+        path (str): Path to the requests CSV file
+        
+    Returns:
+        list[dict]: List of request dictionaries with keys:
+            - id: Request ID (index)
+            - t: Appearance time
+            - px, py: Pickup coordinates
+            - dx, dy: Delivery coordinates
+            - status: Initially "waiting"
+            - driver_id: Initially None
+            - t_wait: Initially 0
+            
+    Raises:
+        FileNotFoundError: If file does not exist
+        ValueError: If any row has invalid data or format
+        
+    Example:
+        >>> requests = load_requests('data/requests.csv')
+        >>> requests[0]['t']
+        0
+        >>> requests[0]['px']
+        1.0
     """
-    # validate data
-    CSV_validate("data/requests.csv", "request")
-
+    lines = read_csv_lines(path)
     requests = []
-    with open(path, newline='') as csvfile:
-        reader = csv.reader(csvfile)
-        next(reader)  # Skip the fist line in CSV-file
-        for idx, row in enumerate(reader):
-            t = float(row[0])
-            px = float(row[1])
-            py = float(row[2])
-            dx = float(row[3])
-            dy = float(row[4])
-
-            # Create a dictionary with data from the row
-            request = {
-                "id": idx,
-                "px": float(row[1]),  # Pickup x-coordinate
-                "py": float(row[2]),  # Pickup y-coordinate
-                "dx": float(row[3]),  # Dropoff x-coordinate
-                "dy": float(row[4]),  # Dropoff y-coordinate
-                "t": int(row[0]),  # Request time
-                "t_wait": 0,  # Waiting time
-                "status": "waiting",  # Request status
-                "driver_id": None  # No driver assigned yet
-            }
-            requests.append(request)  # Add request to the list
-    return requests  # Return the whole list of requests
-
-
-"""
-# generate drivers
-"""
+    
+    for idx, line in enumerate(lines):
+        line_num = idx + 2  # Actual line number in file (line 1 is header)
+        row = parse_csv_line(line)
+        
+        if not row:  # Skip empty rows
+            continue
+        
+        request_data = parse_request_row(row, line_num)
+        
+        request = {
+            "id": idx,
+            "t": request_data["t"],
+            "px": request_data["px"],
+            "py": request_data["py"],
+            "dx": request_data["dx"],
+            "dy": request_data["dy"],
+            "status": "waiting",
+            "driver_id": None,
+            "t_wait": 0
+        }
+        requests.append(request)
+    
+    return requests
 
 
 def generate_drivers(n: int, width: int, height: int) -> list[dict]:
-    """ Generate n random drivers uniformly distributed within the grid.
-
-    Parameters:
-        n (int): number of drivers to create
-        width (int): width of the simulation grid
-        height (int): height of the simulation grid
-
-    Returns:
-        list[dict]: list of driver dictionaries, one per driver
-
     """
-
+    Generate n random drivers uniformly distributed within the grid.
+    
+    Each driver is assigned a unique ID and random initial position and speed.
+    Drivers are created with zero velocity and no assigned target, ready to
+    accept delivery requests.
+    
+    Parameters:
+        n (int): Number of drivers to generate
+        width (int): Width of the simulation grid (max x-coordinate)
+        height (int): Height of the simulation grid (max y-coordinate)
+        
+    Returns:
+        list[dict]: List of n driver dictionaries with keys:
+            - id: Unique integer identifier (0 to n-1)
+            - x, y: Random initial position within [0, width] × [0, height]
+            - speed: Random speed between 0.8 and 1.6 units/tick
+            - vx, vy: Initial velocities (0.0)
+            - target_id: Initially None (no assigned request)
+            
+    Raises:
+        ValueError: If n < 0
+        
+    Example:
+        >>> drivers = generate_drivers(5, 50, 30)
+        >>> len(drivers)
+        5
+        >>> all(0 <= d['x'] <= 50 for d in drivers)
+        True
+        >>> all(0.8 <= d['speed'] <= 1.6 for d in drivers)
+        True
+    """
+    if n < 0:
+        raise ValueError(f"Number of drivers must be non-negative, got {n}")
+    
     drivers = []
-
-    for i in range(n):
-        drivers.append({
-            "driver_id": i,  # driver id = index og generation
-            "x": random.uniform(0, width),  # assign random x coordinate
-            "y": random.uniform(0, height),  # assign random x coordinate
-            "vx": 0.0,  # assign vx = 0.0, no movement when first generated
-            "vy": 0.0,  # assign vy = 0.0, no movement when first generated
-            "speed": random.uniform(0.8, 1.6),  # assign random speed between 0.8 and 1.6 unit/time
-            "tx": None,  # no tx coordinate yet, driver has no target from the beginning
-            "ty": None,  # no ty coordinate yet, driver has no target from the beginning
-            "target_id": None  # no target_id coordinate yet, driver has no target from the beginning
-        })
-
+    for driver_id in range(n):
+        driver = create_driver_dict(driver_id, width, height)
+        drivers.append(driver)
+    
     return drivers
 
 
-"""
-# generate requests
-"""
-
-
-def generate_requests(start_t: int, out_list: list[dict], width: int, height: int, req_rate: float = 3.0) -> None:
+def generate_requests(start_t: int, out_list: list[dict], req_rate: float,
+                     width: int, height: int) -> None:
     """
     Generate new requests at the given time step and append them to out_list.
-
+    
+    New requests are generated stochastically using a Poisson distribution with
+    rate parameter req_rate. This models realistic food delivery systems where
+    orders arrive randomly over time with an average rate of req_rate orders
+    per time unit (minute).
+    
+    On average, the function generates req_rate requests per call. Actual count
+    varies stochastically (sometimes 0, sometimes 2-3, averaging to req_rate).
+    
+    This function is called by simulate_step() at each time step to continuously
+    generate new requests during simulation, replacing those from a finite CSV
+    file when the file is exhausted.
+    
     Parameters:
-        start_t (int): current simulation time (minutes)
-        out_list (list[dict]): list to append newly created requests to
-        width (int): grid width
-        height (int): grid height
-
-    Return:
-        None (modifies out_list)
-
+        start_t (int): Current simulation time (tick/minute when requests are created)
+        out_list (list[dict]): List to append newly created requests to (modified in-place)
+        req_rate (float): Expected average number of new requests per time step (λ for Poisson)
+                         - 0.5 → ~0.5 requests per step
+                         - 2.0 → ~2 requests per step
+                         - 5.0 → ~5 requests per step
+        width (int): Grid width (for random position generation)
+        height (int): Grid height (for random position generation)
+        
+    Returns:
+        None (modifies out_list in-place by appending new Request dictionaries)
+        
+    Raises:
+        ValueError: If req_rate < 0
+        
+    Example:
+        >>> requests = []
+        >>> generate_requests(0, requests, 2.0, 50, 30)
+        >>> len(requests) > 0  # Typically 1-3 for req_rate=2.0
+        True
+        >>> requests[0]['t']
+        0
+        >>> 0 <= requests[0]['px'] <= 50
+        True
+        
+    Notes:
+        - Poisson distribution ensures realistic arrival patterns
+        - Over 100 steps with req_rate=2.0, ~200 requests total
+        - Request ID format: "{start_t}_{counter}" for uniqueness
+        - All generated requests start with status "waiting" and no driver assigned
     """
-
-    for i in range(int(req_rate)):
-        out_list.append({
-            "id": f"{start_t}_{i}",  # request id, with start time and the index of generation
-            "px": random.uniform(0, width),  # random px coordinate
-            "py": random.uniform(0, height),  # random py coordinate
-            "dx": random.uniform(0, width),  # random dx coordinate
-            "dy": random.uniform(0, height),  # random dy coordinate
-            "t": start_t,  # time of request generated
-            "t_wait": 0.0,  # initial waiting time is 0.0 units of time
-            "status": "waiting",  # status is "waiting" from start
-            "driver_id": None  # No driver id, request have not been assigned a driver yet
-        })
+    if req_rate < 0:
+        raise ValueError(f"Request rate must be non-negative, got {req_rate}")
+    
+    # Generate number of requests using Poisson distribution
+    num_requests = generate_request_count(req_rate)
+    
+    # Create each request with random pickup and delivery locations
+    for i in range(num_requests):
+        request = create_request_dict(f"{start_t}_{i}", start_t, width, height)
+        out_list.append(request)
