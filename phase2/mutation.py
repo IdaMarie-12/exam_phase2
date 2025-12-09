@@ -2,8 +2,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional
 import random
+
 from .driver import Driver
-from .request import Request
+from .behaviours import GreedyDistanceBehaviour, EarningsMaxBehaviour, LazyBehaviour
 
 # --------------------------------------
 # Mutation Rule Base class
@@ -38,7 +39,7 @@ class PerformanceBasedMutation(MutationRule):
         if avg is None:
             return
         if avg < self.earnings_threshold:
-            driver.behavior = GreedyDistanceBehaviour(max_distance=10.0)
+            driver.behaviour = GreedyDistanceBehaviour(max_distance=10.0)
 
 # --------------------------------------
 # Exploration Mutation
@@ -53,10 +54,10 @@ class ExplorationMutation(MutationRule):
         if random.random() >= self.p:
             return
 
-        choice = random.choice(["greedy", "earnigns", "lazy"])
+        choice = random.choice(["greedy", "earnings", "lazy"])
         if choice == "greedy":
-            driver.behaviour = GreedyDistanceBehaviour(max_distance = 15.0)
+            driver.behaviour = GreedyDistanceBehaviour(max_distance=15.0)
         elif choice == "earnings":
-            driver.behaviour = EarningsMaxBehaviour(min_reward_per_time = 0.5)
+            driver.behaviour = EarningsMaxBehaviour(min_reward_per_time=0.5)
         else:
-            driver.behaviour = LazyBehaviour(idle_ticks_needed = 3, max_distance = 5.0)
+            driver.behaviour = LazyBehaviour(idle_ticks_needed=3, max_distance=5.0)
