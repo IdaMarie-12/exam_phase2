@@ -1,16 +1,21 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
-
 from .point import Point
 from .request import Request
 
 if TYPE_CHECKING:
-    from .behaviours import DriverBehaviour
+    from phase2.behaviours import DriverBehaviour
 
 # --------------------------------------
 # Driver
 # --------------------------------------
+
+# Global definition of driver status
+IDLE = "IDLE"
+DROPOFF = "DROPOFF"
+TO_PICKUP = "TO_PICKUP"
+
 @dataclass
 class Driver:
     """ Driver agent that moves, accepts offers, earns rewards, and mutate. """
@@ -18,45 +23,43 @@ class Driver:
     # Attributes
     id: int
     position: Point
+    behaviour: Optional["DriverBehaviour"] = None
     speed: float = 1.0
-    status: str = "idle"
+    status: str = IDLE
     current_request: Optional[Request] = None
-    behaviour: Optional[DriverBehaviour] = None
     history: List[Dict[str, Any]] = field(default_factory=list)
     idle_since: Optional[int] = 0
-    earnings: float = 0
-    points: float = 0
+    earnings: float = 0.0
+    points: float = 0.0
 
     # Convenience helpers
     def is_idle(self) -> bool:
         """ Return True if driver is currently idle (no active request), false otherwise. """
 
-        return self.status == "idle" and self.current_request is None
+        return self.status == "IDLE" and self.current_request is None
 
     # Core lifecycle methods
     def assign_request(self, request: Request, current_time: int) -> None:
-        """
-        Assign a request to this dirver and start moving to pickup.
-
-        Parameters:
-            request (Request): Request object to serve
-            current_time (int): Simulation time when assignment happens
-        """
+        """ Assign a request to this dirver and start moving to pickup. """
         self.current_request = request
-        self.status = "to_pickup"
+        self.status = "TO_PICKUP"
         request.mark_assigned(self.id)
-
-        # Driver is no longer idle
         self.idle_since = None
+
+        # Record when this trip started
+        self.history.append({
+            "request_id": request.id,
+            "start_time": current_time,
+        })
 
     def target_point(self) -> Optional[Point]:
         """ Return the current target point (pickup / dropoff) or None. """
 
         if self.current_request is None:
             return None
-        if self.status == "to_pickup":
+        if self.status == "TO_PICKUP":
             return self.current_request.pickup
-        if self.status == "to_dropoff":
+        if self.status == "TO_DROPOFF":
             return self.current_request.dropoff
         return None
 
@@ -93,7 +96,7 @@ class Driver:
             return
 
         self.current_request.mark_picked(time)
-        self.status = "to_dropoff"
+        self.status = "TO_DROPOFF"
 
     def complete_dropoff(self, time: int) -> None:
         """
@@ -103,7 +106,7 @@ class Driver:
             - Update the Request status to "delivered" and its wait_time
             - Append a trip record to "history"
             - Update "earnings" and "points"
-            - Reset the driver to "idle" and set "idle_since"
+            - Reset the driver to "IDLE" and set "idle_since"
         """
 
         # Check if driver has any requests
@@ -126,7 +129,8 @@ class Driver:
             "fare": fare,
             "wait": wait,
             "points": points,
-            "request_id": req.id
+            "request_id": req.id,
+            "start_time": req.creation_time,
         })
 
         # Update aggregates
@@ -135,7 +139,6 @@ class Driver:
 
         # Reset driver state
         self.current_request = None
-        self.status = "idle"
+        self.status = "IDLE"
         self.idle_since = time
-
 
