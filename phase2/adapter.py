@@ -55,7 +55,7 @@ _time_series: SimulationTimeSeries | None = None  # Track metrics for post-simul
 # Adapter functions (called by GUI)
 # ====================================================================
 
-def load_drivers(path: str) -> List[dict]:
+def load_drivers(path: str) -> List[Dict[str, float]]:
     """
     Load drivers from CSV file.
     
@@ -89,7 +89,7 @@ def load_drivers(path: str) -> List[dict]:
     return drivers
 
 
-def load_requests(path: str) -> List[dict]:
+def load_requests(path: str) -> List[Dict[str, float]]:
     """
     Load requests from CSV file.
     
@@ -198,9 +198,9 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
     
     # Create OOP Driver objects
     drivers = []
-    for d_dict in drivers_data:
+    for idx, d_dict in enumerate(drivers_data):
         driver = Driver(
-            id=d_dict["id"],
+            id=d_dict.get("id", idx),  # Use index as id if not provided (CSV case)
             position=Point(d_dict["x"], d_dict["y"]),
             speed=d_dict.get("speed", 1.5),
             behaviour=LazyBehaviour(idle_ticks_needed=3),

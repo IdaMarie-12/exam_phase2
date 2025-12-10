@@ -336,7 +336,8 @@ def _adapter_init(
         reqs = backend["load_requests"](requests_path)
     else:
         reqs: List[dict] = []
-        backend["generate_requests"](0, reqs, req_rate, GRID_WIDTH, GRID_HEIGHT)
+        # With Option 1, don't generate requests here - let them appear during simulation
+        # backend["generate_requests"](0, reqs, req_rate, GRID_WIDTH, GRID_HEIGHT)
 
     # determinism: sort by appearance time if present
     reqs.sort(key=lambda r: r.get("t", 0))

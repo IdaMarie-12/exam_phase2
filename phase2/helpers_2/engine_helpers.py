@@ -1,4 +1,4 @@
-from ..request import RequestStatus, WAITING, ASSIGNED, PICKED, EXPIRED
+from ..request import WAITING, ASSIGNED, PICKED, EXPIRED
 from ..offer import Offer
 
 
@@ -321,7 +321,7 @@ def sim_to_state_dict(simulation):
                 "py": r.pickup.y,
                 "dx": r.dropoff.x,
                 "dy": r.dropoff.y,
-                "status": r.status,
+                "status": r.status.lower(),
                 "t": r.creation_time,
             }
             for r in simulation.requests

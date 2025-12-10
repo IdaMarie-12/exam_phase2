@@ -37,13 +37,23 @@ def generate_request_count(req_rate: float) -> int:
         1.98
     """
     # Implement Poisson distribution using Knuth's algorithm
-    # Since Python's random module doesn't have poisson, we implement it manually
+    # This works with only the standard library (no NumPy required)
+    if req_rate < 0:
+        raise ValueError(f"req_rate must be non-negative, got {req_rate}")
+    
+    # For very small rates, use a simpler approach
+    if req_rate == 0:
+        return 0
+    
+    # Knuth's algorithm
     L = math.exp(-req_rate)
     k = 0
     p = 1.0
+    
     while p > L:
         k += 1
         p *= random.random()
+    
     return k - 1
 
 

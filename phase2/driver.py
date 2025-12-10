@@ -6,15 +6,12 @@ from .helpers_2.core_helpers import is_at_target, move_towards, calculate_points
 
 if TYPE_CHECKING:
     from phase2.behaviours import DriverBehaviour
+    from phase2.request import Request
 
-# --------------------------------------
-# Driver
-# --------------------------------------
-
-# Global definition of driver status
+# Status constants for drivers
 IDLE = "IDLE"
-DROPOFF = "DROPOFF"
 TO_PICKUP = "TO_PICKUP"
+TO_DROPOFF = "TO_DROPOFF"
 
 @dataclass
 class Driver:

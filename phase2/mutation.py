@@ -39,6 +39,21 @@ if TYPE_CHECKING:
 
 
 # ====================================================================
+# MUTATION BEHAVIOUR PARAMETERS (module-level constants)
+# ====================================================================
+# Used when creating new behaviour instances during mutations
+
+# PerformanceBasedMutation: When earnings are too low, switch to greedy
+PERF_MUTATION_GREEDY_MAX_DISTANCE = 10.0
+
+# ExplorationMutation: Random behaviour parameters when exploring
+EXPL_GREEDY_MAX_DISTANCE = 15.0
+EXPL_EARNINGS_MIN_REWARD_PER_TIME = 0.5
+EXPL_LAZY_IDLE_TICKS_NEEDED = 3
+EXPL_LAZY_MAX_DISTANCE = 5.0
+
+
+# ====================================================================
 # Mutation Rule Base Class
 # ====================================================================
 
@@ -218,7 +233,7 @@ class PerformanceBasedMutation(MutationRule):
             return  # Not enough history yet
         
         if avg < self.earnings_threshold:
-            driver.behaviour = GreedyDistanceBehaviour(max_distance=10.0)
+            driver.behaviour = GreedyDistanceBehaviour(max_distance=PERF_MUTATION_GREEDY_MAX_DISTANCE)
 
 
 
@@ -326,8 +341,8 @@ class ExplorationMutation(MutationRule):
         choice = random.choice(["greedy", "earnings", "lazy"])
         
         if choice == "greedy":
-            driver.behaviour = GreedyDistanceBehaviour(max_distance=15.0)
+            driver.behaviour = GreedyDistanceBehaviour(max_distance=EXPL_GREEDY_MAX_DISTANCE)
         elif choice == "earnings":
-            driver.behaviour = EarningsMaxBehaviour(min_reward_per_time=0.5)
+            driver.behaviour = EarningsMaxBehaviour(min_reward_per_time=EXPL_EARNINGS_MIN_REWARD_PER_TIME)
         else:  # choice == "lazy"
-            driver.behaviour = LazyBehaviour(idle_ticks_needed=3, max_distance=5.0)
+            driver.behaviour = LazyBehaviour(idle_ticks_needed=EXPL_LAZY_IDLE_TICKS_NEEDED, max_distance=EXPL_LAZY_MAX_DISTANCE)

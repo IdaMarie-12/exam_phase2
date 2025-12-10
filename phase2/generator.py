@@ -39,11 +39,42 @@ Example Usage:
 """
 
 import random
+import math
 from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from phase2.request import Request
     from phase2.point import Point
+
+
+def _generate_poisson(rate: float) -> int:
+    """
+    Generate a Poisson-distributed random number using Knuth's algorithm.
+    
+    Works with standard library only (no NumPy required).
+    
+    Args:
+        rate: Lambda parameter (expected value)
+        
+    Returns:
+        Poisson-distributed integer
+    """
+    if rate < 0:
+        raise ValueError(f"rate must be non-negative, got {rate}")
+    
+    if rate == 0:
+        return 0
+    
+    # Knuth's algorithm
+    L = math.exp(-rate)
+    k = 0
+    p = 1.0
+    
+    while p > L:
+        k += 1
+        p *= random.random()
+    
+    return k - 1
 
 
 
@@ -197,7 +228,7 @@ class RequestGenerator:
         
         # Generate number of requests from Poisson distribution
         # This models realistic stochastic event arrival
-        num_requests = random.poisson(self.rate)
+        num_requests = _generate_poisson(self.rate)
 
         new_requests: List[Request] = []
 

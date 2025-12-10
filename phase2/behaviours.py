@@ -6,6 +6,14 @@ if TYPE_CHECKING:
     from .driver import Driver
 
 
+# ====================================================================
+# BEHAVIOUR PARAMETERS (module-level constants)
+# ====================================================================
+
+# LazyBehaviour: Maximum acceptable distance to pickup location
+LAZY_MAX_PICKUP_DISTANCE = 5.0
+
+
 class DriverBehaviour(ABC):
     """
     Abstract base class that defines the interface for driver decision strategies.
@@ -277,6 +285,6 @@ class LazyBehaviour(DriverBehaviour):
         if idle_duration < self.idle_ticks_needed:
             return False
 
-        # Check if pickup is close enough (hardcoded to 5.0 units for laziness)
+        # Check if pickup is close enough (configured for laziness)
         pickup_distance = driver.position.distance_to(offer.request.pickup)
-        return pickup_distance < 5.0
+        return pickup_distance < LAZY_MAX_PICKUP_DISTANCE

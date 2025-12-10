@@ -1,24 +1,14 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
-from enum import Enum
 from .point import Point
 
-# Status constants for a request
+# Status constants for requests
 WAITING = "WAITING"         # Request has appeared but not yet assigned
 ASSIGNED = "ASSIGNED"       # Request is assigned to a driver
 PICKED = "PICKED"           # Driver has picked up the order
 DELIVERED = "DELIVERED"     # Order has been delivered
 EXPIRED = "EXPIRED"         # Order expired (not picked up in time)
-
-
-class RequestStatus(Enum):
-    """Enum for request status values."""
-    WAITING = "WAITING"
-    ASSIGNED = "ASSIGNED"
-    PICKED = "PICKED"
-    DELIVERED = "DELIVERED"
-    EXPIRED = "EXPIRED"
 
 
 @dataclass

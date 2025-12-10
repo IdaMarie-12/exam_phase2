@@ -1,28 +1,80 @@
-# Python cache
+# ----------------------------
+# Python
+# ----------------------------
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
+*.so
+*.dll
 
 # Virtual environments
 venv/
-env/
 .venv/
+env/
+ENV/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Pytest
-.pytest_cache/
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
 .coverage
+coverage.xml
+.junit/
+.pytest_cache/
 
-# Project specific
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# MyPy / Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# C extensions
+*.c
+*.cpp
+
+# ----------------------------
+# VSCode
+# ----------------------------
+.vscode/
+# but keep settings if you want to share recommended extensions:
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# VSCode workspace
+*.code-workspace
+
+# ----------------------------
+# OS-specific files
+# ----------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# ----------------------------
+# Other common ignores
+# ----------------------------
+logs/
 *.log
-debug/
+.cache/
+tmp/
+temp/

@@ -247,11 +247,22 @@ class DeliverySimulation:
         """
         return {
             "time": self.time,
-            "drivers": [{"id": d.id, "x": d.position.x, "y": d.position.y, "status": d.status} for d in self.drivers],
+            "drivers": [
+                {
+                    "id": d.id,
+                    "x": d.position.x,
+                    "y": d.position.y,
+                    "status": d.status,
+                    "rid": d.current_request.id if d.current_request else None,  # current request assignment
+                    "tx": d.current_request.pickup.x if (d.current_request and d.current_request.status in ("WAITING", "ASSIGNED")) else (d.current_request.dropoff.x if d.current_request else None),
+                    "ty": d.current_request.pickup.y if (d.current_request and d.current_request.status in ("WAITING", "ASSIGNED")) else (d.current_request.dropoff.y if d.current_request else None),
+                }
+                for d in self.drivers
+            ],
             "pickups": [{"id": r.id, "x": r.pickup.x, "y": r.pickup.y} for r in self.requests
-                        if r.status in (RequestStatus.WAITING, RequestStatus.ASSIGNED)],
+                        if r.status in ("WAITING", "ASSIGNED")],
             "dropoffs": [{"id": r.id, "x": r.dropoff.x, "y": r.dropoff.y} for r in self.requests
-                         if r.status == RequestStatus.PICKED],
+                         if r.status == "PICKED"],
             "statistics": {
                 "served": self.served_count,
                 "expired": self.expired_count,
