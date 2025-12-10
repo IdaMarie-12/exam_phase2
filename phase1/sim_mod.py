@@ -42,8 +42,8 @@ def init_state(
         )
     
     return _phase2_backend["init_state"](
-        drivers=drivers,
-        requests=requests,
+        drivers_data=drivers,
+        requests_data=requests,
         timeout=timeout,
         req_rate=req_rate,
         width=width,
