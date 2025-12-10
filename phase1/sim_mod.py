@@ -41,7 +41,14 @@ def init_state(
             "Phase 2 backend not initialized. Check import errors above."
         )
     
-    return _phase2_backend["init_state"](drivers, requests, timeout, req_rate, width, height)
+    return _phase2_backend["init_state"](
+        drivers=drivers,
+        requests=requests,
+        timeout=timeout,
+        req_rate=req_rate,
+        width=width,
+        height=height,
+    )
 
 
 def simulate_step(state: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
