@@ -1,16 +1,21 @@
 """
-io_mod.py - Input/Output module for loading and generating simulation entities.
+io_mod.py - Input/Output helpers for the dispatch simulation.
 
-This module provides functions to:
-1. Load drivers and requests from CSV files
-2. Generate random drivers and requests (with Poisson-distributed request arrival)
-3. Support initialization of simulation data
+Responsibilities
+----------------
+* Load drivers and requests from CSV files using the custom parsers in
+    ``helpers_1.load_helper`` (no stdlib ``csv``).
+* Generate synthetic drivers/requests for procedural runs.
+* Keep validation in the helpers so bad files fail fast (missing/invalid/out-of-bounds).
 
-The module does NOT use the csv standard library module. Instead, it manually
-parses CSV files using helpers from helpers_1/load_helper.py for validation.
-
-Generation uses Poisson distribution for realistic request arrival patterns.
+Notes
+-----
+* Driver CSV: two numeric columns (x, y) within the grid bounds expected by the helpers.
+* Request CSV: five numeric columns (t, px, py, dx, dy) within bounds; times are integers.
+* Generation uses Poisson arrivals for requests to mimic stochastic demand.
 """
+
+import random
 
 from .helpers_1.load_helper import (
     read_csv_lines,
@@ -25,208 +30,134 @@ from .helpers_1.generate_helper import (
 )
 
 def load_drivers(path: str) -> list[dict]:
-    """
-    Load driver records from a CSV file.
-    
-    The CSV file should have two columns (x, y) representing initial positions.
-    
-    Parameters:
-        path (str): Path to the drivers CSV file
-        
+    """Load drivers from CSV.
+
+    Expected CSV format: two numeric columns (x, y). Bounds and types are
+    enforced by ``parse_driver_row``; out-of-bounds or invalid values raise.
+
+    Args:
+        path: Filesystem path to a drivers CSV.
+
     Returns:
-        list[dict]: List of driver dictionaries with keys:
-            - x, y: Initial position
-            - speed: Default speed (1.0)
-            - vx, vy: Initial velocities (0.0)
-            - target_id: Initially None
-            
-    Raises:
-        FileNotFoundError: If file does not exist
-        ValueError: If any row has invalid data or format
-        
-    Example:
-        >>> drivers = load_drivers('data/drivers.csv')
-        >>> len(drivers)
-        10
-        >>> drivers[0]['x']
-        11.0
+        A list of driver dicts with parsed fields and an added sequential ``id``.
     """
-    lines = read_csv_lines(path)
-    drivers = []
-    
-    for line_num, line in enumerate(lines, start=2):  # Start at 2 (line 1 is skipped for header)
+    rows = read_csv_lines(path)
+
+    drivers: list[dict] = []
+    for line_num, line in enumerate(rows, start=2):
         row = parse_csv_line(line)
-        
-        if not row:  # Skip empty rows
+        if not row:
             continue
-        
+
         driver = parse_driver_row(row, line_num)
+        driver.setdefault("id", len(drivers))
         drivers.append(driver)
-    
+
     return drivers
 
 
 def load_requests(path: str) -> list[dict]:
-    """
-    Load request records from a CSV file.
-    
-    The CSV file should have five columns (t, px, py, dx, dy) representing:
-        - t: Time when request appears
-        - px, py: Pickup location
-        - dx, dy: Delivery location
-    
-    Parameters:
-        path (str): Path to the requests CSV file
-        
+    """Load requests from CSV.
+
+    Expected CSV format: five numeric columns (t, px, py, dx, dy). Validation
+    and bounds checking are handled by ``parse_request_row`` and will raise on
+    bad input.
+
+    Args:
+        path: Filesystem path to a requests CSV.
+
     Returns:
-        list[dict]: List of request dictionaries with keys:
-            - id: Request ID (index)
-            - t: Appearance time
-            - px, py: Pickup coordinates
-            - dx, dy: Delivery coordinates
-            - status: Initially "waiting"
-            - driver_id: Initially None
-            - t_wait: Initially 0
-            
-    Raises:
-        FileNotFoundError: If file does not exist
-        ValueError: If any row has invalid data or format
-        
-    Example:
-        >>> requests = load_requests('data/requests.csv')
-        >>> requests[0]['t']
-        0
-        >>> requests[0]['px']
-        1.0
+        A list of request dicts with parsed fields plus a sequential ``id``.
     """
-    lines = read_csv_lines(path)
-    requests = []
-    
-    for idx, line in enumerate(lines):
-        line_num = idx + 2  # Actual line number in file (line 1 is header)
-        row = parse_csv_line(line)
-        
-        if not row:  # Skip empty rows
-            continue
-        
-        request_data = parse_request_row(row, line_num)
-        
-        request = {
-            "id": idx,
-            "t": request_data["t"],
-            "px": request_data["px"],
-            "py": request_data["py"],
-            "dx": request_data["dx"],
-            "dy": request_data["dy"],
-            "status": "waiting",
-            "driver_id": None,
-            "t_wait": 0
-        }
-        requests.append(request)
-    
+    rows = read_csv_lines(path)
+
+    try:
+        requests: list[dict] = []
+        for idx, line in enumerate(rows):
+            line_num = idx + 2  # Actual line number in file (line 1 is header)
+            row = parse_csv_line(line)
+            if not row:
+                continue
+
+            req = parse_request_row(row, line_num)
+            requests.append({"id": idx, **req})
+    except Exception as exc:
+        print(f"Error processing requests from {path}: {exc}")
+        raise
+
     return requests
 
 
 def generate_drivers(n: int, width: int, height: int) -> list[dict]:
-    """
-    Generate n random drivers uniformly distributed within the grid.
-    
-    Each driver is assigned a unique ID and random initial position and speed.
-    Drivers are created with zero velocity and no assigned target, ready to
-    accept delivery requests.
-    
-    Parameters:
-        n (int): Number of drivers to generate
-        width (int): Width of the simulation grid (max x-coordinate)
-        height (int): Height of the simulation grid (max y-coordinate)
-        
+    """Generate ``n`` random drivers uniformly within the grid.
+
+    Args:
+        n: Number of drivers to create (must be non-negative).
+        width: Grid width (max x, inclusive upper bound).
+        height: Grid height (max y, inclusive upper bound).
+
     Returns:
-        list[dict]: List of n driver dictionaries with keys:
-            - id: Unique integer identifier (0 to n-1)
-            - x, y: Random initial position within [0, width] × [0, height]
-            - speed: Random speed between 0.8 and 1.6 units/tick
-            - vx, vy: Initial velocities (0.0)
-            - target_id: Initially None (no assigned request)
-            
+        List of driver dicts with unique ``id`` and random positions in bounds.
+
     Raises:
-        ValueError: If n < 0
-        
-    Example:
-        >>> drivers = generate_drivers(5, 50, 30)
-        >>> len(drivers)
-        5
-        >>> all(0 <= d['x'] <= 50 for d in drivers)
-        True
-        >>> all(0.8 <= d['speed'] <= 1.6 for d in drivers)
-        True
+        ValueError: If ``n`` is negative.
     """
     if n < 0:
         raise ValueError(f"Number of drivers must be non-negative, got {n}")
     
-    drivers = []
+    drivers: list[dict] = []
+    used_positions: set[tuple[int, int]] = set()
+
     for driver_id in range(n):
-        driver = create_driver_dict(driver_id, width, height)
-        drivers.append(driver)
-    
+        while True:
+            x = random.randint(0, max(0, width - 1))
+            y = random.randint(0, max(0, height - 1))
+            pos = (x, y)
+            if pos in used_positions:
+                continue
+            used_positions.add(pos)
+            driver = create_driver_dict(driver_id, width, height)
+            driver["x"] = float(x)
+            driver["y"] = float(y)
+            driver.setdefault("vx", 0.0)
+            driver.setdefault("vy", 0.0)
+            driver.setdefault("tx", None)
+            driver.setdefault("ty", None)
+            driver.setdefault("target_id", None)
+            driver.setdefault("status", "idle")
+            driver.setdefault("request_id", None)
+            drivers.append(driver)
+            break
+
     return drivers
 
 
 def generate_requests(start_t: int, out_list: list[dict], req_rate: float,
                      width: int, height: int) -> None:
-    """
-    Generate new requests at the given time step and append them to out_list.
-    
-    New requests are generated stochastically using a Poisson distribution with
-    rate parameter req_rate. This models realistic food delivery systems where
-    orders arrive randomly over time with an average rate of req_rate orders
-    per time unit (minute).
-    
-    On average, the function generates req_rate requests per call. Actual count
-    varies stochastically (sometimes 0, sometimes 2-3, averaging to req_rate).
-    
-    This function is called by simulate_step() at each time step to continuously
-    generate new requests during simulation, replacing those from a finite CSV
-    file when the file is exhausted.
-    
-    Parameters:
-        start_t (int): Current simulation time (tick/minute when requests are created)
-        out_list (list[dict]): List to append newly created requests to (modified in-place)
-        req_rate (float): Expected average number of new requests per time step (λ for Poisson)
-                         - 0.5 → ~0.5 requests per step
-                         - 2.0 → ~2 requests per step
-                         - 5.0 → ~5 requests per step
-        width (int): Grid width (for random position generation)
-        height (int): Grid height (for random position generation)
-        
-    Returns:
-        None (modifies out_list in-place by appending new Request dictionaries)
-        
+    """Append stochastically generated requests to ``out_list`` at time ``start_t``.
+
+    Uses a Poisson draw (``generate_request_count``) with rate ``req_rate`` to
+    decide how many requests to create, then builds each via
+    ``create_request_dict`` using random positions in the given grid.
+
+    Args:
+        start_t: Current simulation tick; stamped into each request.
+        out_list: Mutable list to extend with new request dicts.
+        req_rate: Expected requests per tick (λ for the Poisson sampler).
+        width: Grid width for random positions.
+        height: Grid height for random positions.
+
     Raises:
-        ValueError: If req_rate < 0
-        
-    Example:
-        >>> requests = []
-        >>> generate_requests(0, requests, 2.0, 50, 30)
-        >>> len(requests) > 0  # Typically 1-3 for req_rate=2.0
-        True
-        >>> requests[0]['t']
-        0
-        >>> 0 <= requests[0]['px'] <= 50
-        True
-        
-    Notes:
-        - Poisson distribution ensures realistic arrival patterns
-        - Over 100 steps with req_rate=2.0, ~200 requests total
-        - Request ID format: "{start_t}_{counter}" for uniqueness
-        - All generated requests start with status "waiting" and no driver assigned
+        ValueError: If ``req_rate`` is negative.
     """
     if req_rate < 0:
         raise ValueError(f"Request rate must be non-negative, got {req_rate}")
     
-    # Generate number of requests using Poisson distribution
     num_requests = generate_request_count(req_rate)
-    
-    # Create each request with random pickup and delivery locations
+
     for i in range(num_requests):
         request = create_request_dict(f"{start_t}_{i}", start_t, width, height)
+        request.setdefault("status", "waiting")
+        request.setdefault("driver_id", None)
+        request.setdefault("t_wait", 0)
         out_list.append(request)
