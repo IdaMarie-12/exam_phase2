@@ -46,14 +46,14 @@ except ImportError:
 
 def generate_report(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
     """
-    Generate comprehensive post-simulation report with plots.
+    Generate comprehensive post-simulation report with multiple windows.
     
-    Creates a multi-panel figure showing:
-        1. Served vs Expired Requests (cumulative over time)
-        2. Average Wait Time Evolution
-        3. Pending Requests Over Time
-        4. Driver Utilization Trend
-        5. Summary Statistics Panel
+    Opens THREE matplotlib windows automatically:
+        1. Metrics Report - Time-series plots (served/expired, wait time, pending, utilization)
+        2. Behaviour Analysis - Driver behaviour distribution and statistics
+        3. Mutation Analysis - Active mutation rule and performance impact
+    
+    All windows are opened non-blocking, allowing all three to display simultaneously.
     
     Args:
         simulation: Completed DeliverySimulation instance
@@ -72,14 +72,16 @@ def generate_report(simulation, time_series: Optional[SimulationTimeSeries] = No
         ...     series.record_tick(sim)
         >>> 
         >>> generate_report(sim, series)
-        >>> plt.show()
+        >>> # All three windows open automatically
     """
     if not HAS_MATPLOTLIB:
         raise RuntimeError("matplotlib not installed. Cannot generate plots.")
     
-    # Create figure with subplots
+    # ====================================================================
+    # WINDOW 1: Metrics Plots
+    # ====================================================================
     fig = plt.figure(figsize=(14, 10))
-    fig.suptitle('Post-Simulation Analysis Report', fontsize=16, fontweight='bold')
+    fig.suptitle('Post-Simulation Metrics Report', fontsize=16, fontweight='bold')
     
     gs = gridspec.GridSpec(3, 2, figure=fig, hspace=0.3, wspace=0.3)
     
@@ -103,7 +105,18 @@ def generate_report(simulation, time_series: Optional[SimulationTimeSeries] = No
     ax5 = fig.add_subplot(gs[2, 1])
     _plot_summary_statistics(ax5, simulation, time_series)
     
-    plt.show()
+    # Open non-blocking so other windows can also display
+    plt.show(block=False)
+    
+    # ====================================================================
+    # WINDOW 2: Behaviour Analysis
+    # ====================================================================
+    _show_behaviour_window(simulation)
+    
+    # ====================================================================
+    # WINDOW 3: Mutation Analysis
+    # ====================================================================
+    _show_mutation_window(simulation)
 
 
 # ====================================================================
@@ -271,3 +284,168 @@ def quick_report(simulation, time_series: Optional[SimulationTimeSeries] = None)
         time_series: Optional SimulationTimeSeries with recorded metrics
     """
     generate_report(simulation, time_series)
+
+
+# ====================================================================
+# BEHAVIOUR & MUTATION ANALYSIS WINDOWS
+# ====================================================================
+
+def _show_behaviour_window(simulation) -> None:
+    """
+    Create and display a window with behaviour analysis plots and statistics.
+    
+    Shows:
+        - Behaviour distribution pie chart
+        - Behaviour count bar chart
+        - Behaviour statistics table
+    """
+    if not HAS_MATPLOTLIB:
+        return
+    
+    from collections import Counter
+    
+    fig = plt.figure(figsize=(12, 8))
+    fig.suptitle('Driver Behaviour Analysis', fontsize=14, fontweight='bold')
+    
+    gs = gridspec.GridSpec(2, 2, figure=fig, hspace=0.3, wspace=0.3)
+    
+    # Count behaviour types
+    behaviour_counts = Counter()
+    for driver in simulation.drivers:
+        behaviour_type = driver.behaviour.__class__.__name__
+        behaviour_counts[behaviour_type] += 1
+    
+    if not behaviour_counts:
+        fig.text(0.5, 0.5, 'No driver behaviour data available', 
+                ha='center', va='center', fontsize=12)
+        plt.show()
+        return
+    
+    # Plot 1: Pie chart of behaviour distribution
+    ax1 = fig.add_subplot(gs[0, 0])
+    colours = ['#FF9999', '#66B2FF', '#99FF99', '#FFD700']
+    ax1.pie(behaviour_counts.values(), labels=behaviour_counts.keys(), 
+            autopct='%1.1f%%', colors=colours, startangle=90)
+    ax1.set_title('Behaviour Distribution')
+    
+    # Plot 2: Bar chart of behaviour counts
+    ax2 = fig.add_subplot(gs[0, 1])
+    behaviours = list(behaviour_counts.keys())
+    counts = list(behaviour_counts.values())
+    bars = ax2.bar(range(len(behaviours)), counts, color=colours[:len(behaviours)])
+    ax2.set_xticks(range(len(behaviours)))
+    ax2.set_xticklabels(behaviours, rotation=45, ha='right')
+    ax2.set_ylabel('Number of Drivers')
+    ax2.set_title('Driver Count by Behaviour')
+    ax2.grid(True, alpha=0.3, axis='y')
+    
+    # Add value labels on bars
+    for bar in bars:
+        height = bar.get_height()
+        ax2.text(bar.get_x() + bar.get_width()/2., height,
+                f'{int(height)}', ha='center', va='bottom')
+    
+    # Plot 3: Behaviour statistics table
+    ax3 = fig.add_subplot(gs[1, :])
+    ax3.axis('off')
+    
+    total_drivers = len(simulation.drivers)
+    stats_text = "BEHAVIOUR STATISTICS\n" + "=" * 50 + "\n\n"
+    stats_text += f"Total Drivers: {total_drivers}\n\n"
+    stats_text += "Behaviour Type Distribution:\n"
+    
+    for behaviour_type, count in sorted(behaviour_counts.items()):
+        percentage = (count / total_drivers * 100) if total_drivers > 0 else 0
+        stats_text += f"  • {behaviour_type:25s}: {count:3d} drivers ({percentage:5.1f}%)\n"
+    
+    ax3.text(0.1, 0.95, stats_text, transform=ax3.transAxes,
+            fontsize=11, verticalalignment='top', family='monospace',
+            bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
+    
+    # Open non-blocking so user can view while other windows also display
+    plt.show(block=False)
+
+
+def _show_mutation_window(simulation) -> None:
+    """
+    Create and display a window with mutation rule analysis.
+    
+    Shows:
+        - Active mutation rule and configuration
+        - Rule trigger conditions
+        - Performance impact metrics
+    """
+    if not HAS_MATPLOTLIB:
+        return
+    
+    fig = plt.figure(figsize=(12, 6))
+    fig.suptitle('Mutation Rule Analysis', fontsize=14, fontweight='bold')
+    
+    gs = gridspec.GridSpec(1, 2, figure=fig, hspace=0.3, wspace=0.3)
+    
+    # Plot 1: Rule information
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.axis('off')
+    
+    if not hasattr(simulation, 'mutation_rule') or simulation.mutation_rule is None:
+        ax1.text(0.5, 0.5, 'No mutation rule configured',
+                transform=ax1.transAxes, ha='center', va='center',
+                fontsize=12, color='gray')
+    else:
+        rule = simulation.mutation_rule
+        rule_type = rule.__class__.__name__
+        
+        rule_text = f"MUTATION RULE CONFIGURATION\n" + "=" * 45 + "\n\n"
+        rule_text += f"Active Rule: {rule_type}\n\n"
+        
+        if rule_type == "PerformanceBasedMutation":
+            if hasattr(rule, 'window'):
+                rule_text += f"Observation Window:  {rule.window} ticks\n"
+            if hasattr(rule, 'earnings_threshold'):
+                rule_text += f"Earnings Threshold:  {rule.earnings_threshold:.2f}\n"
+            if hasattr(rule, 'mutation_count'):
+                rule_text += f"Mutations Performed: {rule.mutation_count}\n"
+            rule_text += "\nTrigger Condition:\n"
+            rule_text += "  Drivers with earnings below threshold\n"
+            rule_text += "  switch to higher-earning behaviours\n"
+            
+        elif rule_type == "ExplorationMutation":
+            if hasattr(rule, 'mutation_probability'):
+                rule_text += f"Mutation Probability: {rule.mutation_probability:.3f}\n"
+            if hasattr(rule, 'mutation_count'):
+                rule_text += f"Mutations Performed: {rule.mutation_count}\n"
+            rule_text += "\nTrigger Condition:\n"
+            rule_text += "  Random exploration with fixed probability\n"
+            rule_text += "  each simulation tick\n"
+        else:
+            rule_text += f"Custom Rule: {rule_type}\n"
+        
+        ax1.text(0.1, 0.95, rule_text, transform=ax1.transAxes,
+                fontsize=10, verticalalignment='top', family='monospace',
+                bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.7))
+    
+    # Plot 2: Impact metrics
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax2.axis('off')
+    
+    total_requests = simulation.served_count + simulation.expired_count
+    service_level = (simulation.served_count / total_requests * 100) if total_requests > 0 else 0
+    
+    impact_text = "PERFORMANCE IMPACT\n" + "=" * 45 + "\n\n"
+    impact_text += f"Final Service Level:  {service_level:.1f}%\n"
+    impact_text += f"  • Served:           {simulation.served_count}\n"
+    impact_text += f"  • Expired:          {simulation.expired_count}\n"
+    impact_text += f"  • Total Requests:   {total_requests}\n\n"
+    impact_text += f"Average Wait Time:    {simulation.avg_wait:.2f} ticks\n"
+    impact_text += f"Simulation Duration:  {simulation.time} ticks\n"
+    impact_text += f"Total Drivers:        {len(simulation.drivers)}\n"
+    
+    ax2.text(0.1, 0.95, impact_text, transform=ax2.transAxes,
+            fontsize=10, verticalalignment='top', family='monospace',
+            bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.7))
+    
+    # Open non-blocking so user can view while other windows also display
+    plt.show(block=False)
+
+
+

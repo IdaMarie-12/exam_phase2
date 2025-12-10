@@ -111,7 +111,7 @@ class SimulationTimeSeries:
         
         # Count pending requests
         pending_count = len([r for r in simulation.requests 
-                            if r.status.name in ('WAITING', 'ASSIGNED', 'PICKED')])
+                            if r.status in ('WAITING', 'ASSIGNED', 'PICKED')])
         self.pending.append(pending_count)
         
         # Driver utilization

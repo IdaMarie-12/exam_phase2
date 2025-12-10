@@ -35,6 +35,8 @@ Design Notes:
 
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Tuple
+from .driver import IDLE
+from .request import WAITING
 
 if TYPE_CHECKING:
     from phase2.driver import Driver
@@ -346,8 +348,8 @@ class GlobalGreedy(DispatchPolicy):
             - Practical: acceptable for fleets up to ~1000 drivers
         """
         # Filter idle drivers and waiting requests
-        idle = [d for d in drivers if getattr(d, "status", None) == d.IDLE]
-        waiting = [r for r in requests if getattr(r, "status", None) == r.WAITING]
+        idle = [d for d in drivers if getattr(d, "status", None) == IDLE]
+        waiting = [r for r in requests if getattr(r, "status", None) == WAITING]
 
         # List to hold all possible (distance, driver, request) tuples
         all_pairs: List[Tuple[float, "Driver", "Request"]] = []
