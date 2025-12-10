@@ -36,9 +36,15 @@ def generate_request_count(req_rate: float) -> int:
         >>> sum(counts) / len(counts)  # Should be approximately 2.0
         1.98
     """
-    # Use Python's built-in Poisson distribution
-    # This is more numerically stable than Knuth's algorithm for all rates
-    return random.poisson(req_rate)
+    # Implement Poisson distribution using Knuth's algorithm
+    # Since Python's random module doesn't have poisson, we implement it manually
+    L = math.exp(-req_rate)
+    k = 0
+    p = 1.0
+    while p > L:
+        k += 1
+        p *= random.random()
+    return k - 1
 
 
 def create_random_position(width: float, height: float) -> tuple[float, float]:

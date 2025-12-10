@@ -202,18 +202,20 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
             id=d_dict["id"],
             position=Point(d_dict["x"], d_dict["y"]),
             speed=d_dict.get("speed", 1.5),
-            behaviour=LazyBehaviour(idle_ticks_needed=3, max_distance=5.0),
+            behaviour=LazyBehaviour(idle_ticks_needed=3),
         )
         drivers.append(driver)
     
     # Create OOP Request objects
     requests = []
     for r_dict in requests_data:
+        # Handle both Phase 1 format (t) and Phase 2 format (creation_time)
+        creation_time = r_dict.get("creation_time", r_dict.get("t", 0))
         request = Request(
             id=r_dict["id"],
             pickup=Point(r_dict["px"], r_dict["py"]),
             dropoff=Point(r_dict["dx"], r_dict["dy"]),
-            creation_time=r_dict.get("creation_time", 0),
+            creation_time=creation_time,
         )
         requests.append(request)
     

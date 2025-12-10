@@ -1,4 +1,4 @@
-from helpers_1 import sim_helper as hf
+from .helpers_1 import sim_helper as hf
 
 """
 Phase 1 Simulation Module (Adapter for Phase 2)
@@ -12,12 +12,12 @@ The mode is determined automatically based on what's available in the environmen
 """
 
 # Module-level flag and state for Phase 2 delegation
-_USE_PHASE2 = False
+_USE_PHASE2 = False  # Disabled by default - use Phase 1
 _phase2_adapter = None
 _phase2_backend = None
 
 try:
-    # Try to import Phase 2 adapter
+    # Try to import Phase 2 adapter (but don't use it by default)
     import os
     from sys import path as syspath
     phase2_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'phase2')
@@ -25,8 +25,8 @@ try:
         syspath.insert(0, os.path.dirname(os.path.dirname(__file__)))
     
     from phase2 import adapter as phase2_adapter
-    _USE_PHASE2 = True
     _phase2_backend = phase2_adapter.create_phase2_backend()
+    # _USE_PHASE2 = True  # Uncomment this line to enable Phase 2
 except ImportError:
     _USE_PHASE2 = False
     _phase2_adapter = None
