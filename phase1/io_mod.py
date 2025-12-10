@@ -24,7 +24,6 @@ from .helpers_1.generate_helper import (
     create_request_dict,
 )
 
-
 def load_drivers(path: str) -> list[dict]:
     """
     Load driver records from a CSV file.
