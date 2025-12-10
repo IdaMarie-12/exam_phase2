@@ -1,4 +1,4 @@
-from helpers_1 import sim_helper as hf
+from .helpers_1 import sim_helper as hf
 
 """
 Phase 1 Simulation Module (Adapter for Phase 2)
@@ -33,7 +33,7 @@ except ImportError:
     _phase2_backend = None
 
 
-def init_state(drivers, requests, horizon: int, timeout: int = 10, req_rate: float = 3, width: int = 50, height: int = 30):
+def init_state(drivers, requests, timeout: int = 10, req_rate: float = 3, width: int = 50, height: int = 30):
     """ Initialize and return the full simulation state dictionary.
     
     When Phase 2 is available, delegates to Phase 2's advanced engine.
@@ -56,7 +56,6 @@ def init_state(drivers, requests, horizon: int, timeout: int = 10, req_rate: flo
             "req_rate": req_rate,  # The rate for generating new requests
             "width": width,  # Grid width
             "height": height,  # Grid height
-            "horizon": horizon, # The amount of units the code runs
             "printed_summary": False,
             "sum_wait": 0.0,
             "total_served_for_avg": 0,

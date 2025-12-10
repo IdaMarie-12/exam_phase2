@@ -9,7 +9,7 @@ This module provides utility functions for stochastic generation of simulation e
 
 import random
 import math
-from typing import Any
+from typing import Any, Union, Tuple, Dict
 
 
 def generate_request_count(req_rate: float) -> int:
@@ -41,7 +41,7 @@ def generate_request_count(req_rate: float) -> int:
     return random.poisson(req_rate)
 
 
-def create_random_position(width: float, height: float) -> tuple[float, float]:
+def create_random_position(width: float, height: float) -> Tuple[float, float]:
     """
     Generate a random position uniformly within the grid bounds.
     
@@ -63,7 +63,7 @@ def create_random_position(width: float, height: float) -> tuple[float, float]:
     return (x, y)
 
 
-def create_driver_dict(driver_id: int, width: float, height: float) -> dict[str, Any]:
+def create_driver_dict(driver_id: int, width: float, height: float) -> Dict[str, Any]:
     """
     Create a single driver dictionary with random initial position and speed.
     
@@ -107,8 +107,8 @@ def create_driver_dict(driver_id: int, width: float, height: float) -> dict[str,
     }
 
 
-def create_request_dict(request_id: int | str, time: int, width: float, 
-                       height: float) -> dict[str, Any]:
+def create_request_dict(request_id: Union[int, str], time: int, width: float, 
+                       height: float) -> Dict[str, Any]:
     """
     Create a single request dictionary with random pickup and delivery locations.
     
