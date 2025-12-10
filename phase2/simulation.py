@@ -42,7 +42,6 @@ Example:
 """
 
 from collections import defaultdict
-from .request import RequestStatus
 from .offer import Offer
 from .helpers_2.engine_helpers import (
     gen_requests, expire_requests, get_proposals, collect_offers,

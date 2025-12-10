@@ -2,7 +2,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from .point import Point
-from .request import Request
 from .helpers_2.core_helpers import is_at_target, move_towards, calculate_points, record_assignment_start, record_completion, finalize_trip
 
 if TYPE_CHECKING:

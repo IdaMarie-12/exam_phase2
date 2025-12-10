@@ -12,7 +12,6 @@ parses CSV files using helpers from helpers_1/load_helper.py for validation.
 Generation uses Poisson distribution for realistic request arrival patterns.
 """
 
-import random
 from helpers_1.load_helper import (
     read_csv_lines,
     parse_csv_line,

@@ -1,41 +1,85 @@
-import io_mod
-import help_functions as hf
-import random
+from helpers_1 import sim_helper as hf
 
 """
-# init state
+Phase 1 Simulation Module (Adapter for Phase 2)
+
+This module bridges Phase 1's simulation interface with Phase 2's advanced engine.
+It can work in two modes:
+  1. Phase 1 Mode: Uses Phase 1's procedural simulation (original implementation)
+  2. Phase 2 Mode: Delegates to Phase 2's OOP engine when available
+
+The mode is determined automatically based on what's available in the environment.
 """
+
+# Module-level flag and state for Phase 2 delegation
+_USE_PHASE2 = False
+_phase2_adapter = None
+_phase2_backend = None
+
+try:
+    # Try to import Phase 2 adapter
+    import os
+    from sys import path as syspath
+    phase2_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'phase2')
+    if phase2_path not in syspath:
+        syspath.insert(0, os.path.dirname(os.path.dirname(__file__)))
+    
+    from phase2 import adapter as phase2_adapter
+    _USE_PHASE2 = True
+    _phase2_backend = phase2_adapter.create_phase2_backend()
+except ImportError:
+    _USE_PHASE2 = False
+    _phase2_adapter = None
+    _phase2_backend = None
 
 
 def init_state(drivers, requests, horizon: int, timeout: int = 10, req_rate: float = 3, width: int = 50, height: int = 30):
     """ Initialize and return the full simulation state dictionary.
+    
+    When Phase 2 is available, delegates to Phase 2's advanced engine.
+    Otherwise, falls back to Phase 1's procedural simulation.
     """
-    state = {
-        "t": 0,  # Simulation time starts at 0
-        "drivers": drivers,  # List of drivers dictionaries
-        "pending": [],  # Requests currently being processed
-        "future": requests,  # Requests scheduled for future steps
-        "served": 0,  # Number of served requests
-        "expired": 0,  # Number of expired requests
-        "timeout": timeout,  # Max waiting time for requests before it expires
-        "served_waits": [],  # List to track waiting time for served requests
-        "req_rate": req_rate,  # The rate for generating new requests
-        "width": width,  # Grid width
-        "height": height,  # Grid height
-        "horizon": horizon, # The amount of units the code runs
-        "printed_summary": False,
-        "sum_wait": 0.0,
-        "total_served_for_avg": 0,
-    }
-    return state
-
-
-"""
-# simulate step
-"""
+    if _USE_PHASE2 and _phase2_backend:
+        # Use Phase 2's advanced engine
+        return _phase2_backend["init_state"](drivers, requests, timeout, req_rate, width, height)
+    else:
+        # Fall back to Phase 1's procedural simulation
+        state = {
+            "t": 0,  # Simulation time starts at 0
+            "drivers": drivers,  # List of drivers dictionaries
+            "pending": [],  # Requests currently being processed
+            "future": requests,  # Requests scheduled for future steps
+            "served": 0,  # Number of served requests
+            "expired": 0,  # Number of expired requests
+            "timeout": timeout,  # Max waiting time for requests before it expires
+            "served_waits": [],  # List to track waiting time for served requests
+            "req_rate": req_rate,  # The rate for generating new requests
+            "width": width,  # Grid width
+            "height": height,  # Grid height
+            "horizon": horizon, # The amount of units the code runs
+            "printed_summary": False,
+            "sum_wait": 0.0,
+            "total_served_for_avg": 0,
+        }
+        return state
 
 
 def simulate_step(state):
+    """ Advance simulation by one tick.
+    
+    When Phase 2 is available, uses its advanced engine.
+    Otherwise, falls back to Phase 1's procedural simulation.
+    """
+    if _USE_PHASE2 and _phase2_backend:
+        # Use Phase 2's advanced engine
+        return _phase2_backend["simulate_step"](state)
+    else:
+        # Fall back to Phase 1's procedural simulation
+        return _simulate_step_phase1(state)
+
+
+def _simulate_step_phase1(state):
+    """ Phase 1's original procedural simulation logic. """
     # 1. Update the simulation time by one step
     state["t"] += 1
 

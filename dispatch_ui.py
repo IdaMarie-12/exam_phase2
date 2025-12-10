@@ -55,7 +55,7 @@ Notes
 
 from __future__ import annotations
 
-from typing import Optional, Dict, Callable, Tuple, Any
+from typing import Optional, Dict, Callable, Any
 from gui._engine import run_app
 
 
