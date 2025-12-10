@@ -52,6 +52,7 @@ def simulate_step(state):
     Returns:
         Tuple of (updated_state, metrics_dict)
     """
+    # yooo 
     if _phase2_backend is None:
         raise RuntimeError("Phase 2 backend not initialized")
     
