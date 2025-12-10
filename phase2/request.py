@@ -261,3 +261,5 @@ class Request:
             'Request(id=1, status=WAITING, wait=0, pickup=Point(5.0, 10.0))'
         """
         return f"Request(id={self.id}, status={self.status}, wait={self.wait_time}, pickup={self.pickup})"
+
+#slet det her
