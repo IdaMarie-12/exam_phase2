@@ -1,7 +1,7 @@
 """Delivery simulation engine with 9-phase orchestration: generate, expire, propose, collect, resolve, assign, move, mutate, time. O(D*R)."""
 
-from collections import defaultdict
-from .offer import Offer
+from collections import defaultdict #for earnings tracking
+from .offer import Offer ## to avoid circular imports
 from .helpers_2.engine_helpers import (
     gen_requests, expire_requests, get_proposals, collect_offers,
     resolve_conflicts, assign_requests, move_drivers,
@@ -39,7 +39,6 @@ class DeliverySimulation:
 
     # ================================================================
     # MAIN TICK (9-phase orchestration)
-    # ================================================================
 
     def tick(self):
         """Execute 9-phase step: gen, expire, propose, collect, resolve, assign, move, mutate, increment. O(D*R)."""
@@ -64,7 +63,6 @@ class DeliverySimulation:
 
     # ================================================================
     # Statistics and Snapshots
-    # ================================================================
 
     def get_snapshot(self):
         """Return JSON-serializable snapshot: time, drivers, pickups, dropoffs, statistics. O(D+R)."""
@@ -92,3 +90,4 @@ class DeliverySimulation:
                 "avg_wait": self.avg_wait,
             },
         }
+
