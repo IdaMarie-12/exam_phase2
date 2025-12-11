@@ -105,8 +105,8 @@ def generate_report(simulation, time_series: Optional[SimulationTimeSeries] = No
     ax5 = fig.add_subplot(gs[2, 1])
     _plot_summary_statistics(ax5, simulation, time_series)
     
-    # Open non-blocking so other windows can also display
-    plt.show(block=False)
+    # Open blocking so windows stay open
+    plt.show()
     
     # ====================================================================
     # WINDOW 2: Behaviour Analysis
@@ -362,8 +362,8 @@ def _show_behaviour_window(simulation) -> None:
             fontsize=11, verticalalignment='top', family='monospace',
             bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
     
-    # Open non-blocking so user can view while other windows also display
-    plt.show(block=False)
+    # Open blocking so windows stay open
+    plt.show()
 
 
 def _show_mutation_window(simulation) -> None:
@@ -444,8 +444,8 @@ def _show_mutation_window(simulation) -> None:
             fontsize=10, verticalalignment='top', family='monospace',
             bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.7))
     
-    # Open non-blocking so user can view while other windows also display
-    plt.show(block=False)
+    # Open blocking so windows stay open
+    plt.show()
 
 
 
