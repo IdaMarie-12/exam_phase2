@@ -1,50 +1,28 @@
-"""
-Phase 2 Adapter: Bridges the OOP simulation to the GUI’s procedural calls.
-
-What it does
-------------
-* Translates between Phase 2 classes (DeliverySimulation, Driver, Request, etc.)
-    and the dict-based interface that the GUI expects.
-* Exposes the six Phase 1-style functions the GUI currently calls, plus
-    assignment-aligned wrappers (init_simulation, step_simulation, get_plot_data).
-* Maintains module-level simulation and metrics so the GUI can step and render.
-
-Key functions exposed to the GUI
---------------------------------
-1) load_drivers(path) -> list[dict]
-2) load_requests(path) -> list[dict]
-3) generate_drivers(n, width, height) -> list[dict]
-4) generate_requests(start_t, out_list, req_rate, width, height) -> None
-5) init_state(drivers, requests, timeout, req_rate, width, height) -> dict
-6) simulate_step(state) -> (dict, dict)
-
-Assignment wrappers
--------------------
-* init_simulation(...) -> None (delegates to init_state)
-* step_simulation() -> (time, metrics) (delegates to simulate_step)
-* get_plot_data() -> plotting tuples derived from current state
-
-State/metrics helpers
----------------------
-* sim_to_state_dict converts the OOP sim to a dict for the GUI
-* get_adapter_metrics extracts served/expired/avg_wait from the sim
-* SimulationTimeSeries records metrics over time for post-run reporting
-"""
+# ====================================================================
+# Phase 2 Adapter: Bridges OOP simulation to GUI's procedural calls
+# ====================================================================
 
 from __future__ import annotations
 from typing import Any, Callable, Dict, List, Tuple, Optional
-import csv
-import random
 
-from .point import Point
-from .request import Request
-from .driver import Driver
+# Import shared I/O functions from Phase 1 (avoids code duplication)
+from phase1.io_mod import load_drivers, load_requests, generate_drivers
+
+# Phase 2 OOP components
 from .generator import RequestGenerator
 from .policies import GlobalGreedy
-from .behaviours import LazyBehaviour
 from .mutation import PerformanceBasedMutation
 from .simulation import DeliverySimulation
-from .helpers_2.engine_helpers import sim_to_state_dict, get_adapter_metrics
+
+# Helper functions for dict <-> object conversion and state extraction
+from .helpers_2.engine_helpers import (
+    sim_to_state_dict,           # Simulation -> GUI state dict
+    get_adapter_metrics,         # Simulation -> metrics dict
+    create_driver_from_dict,     # Driver dict -> Driver object
+    create_request_from_dict,    # Request dict -> Request object
+    request_to_dict,             # Request object -> dict
+    get_plot_data_from_state,    # State dict -> plot tuples
+)
 from .helpers_2.metrics_helpers import SimulationTimeSeries
 
 
@@ -60,130 +38,38 @@ _time_series: SimulationTimeSeries | None = None  # Track metrics for post-simul
 # Adapter functions (called by GUI)
 # ====================================================================
 
-def load_drivers(path: str) -> List[Dict[str, float]]:
-    """Load drivers from CSV into dicts (id, x, y, speed).
+# load_drivers, load_requests, generate_drivers are imported from phase1.io_mod
 
-    Expected columns: id,x,y,speed. Missing speed defaults to 1.5.
-    """
-    drivers = []
-    try:
-        with open(path, 'r') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                drivers.append({
-                    "id": int(row["id"]),
-                    "x": float(row["x"]),
-                    "y": float(row["y"]),
-                    "speed": float(row.get("speed", 1.5)),
-                })
-    except FileNotFoundError:
-        print(f"Warning: Driver file not found: {path}")
-    except Exception as e:
-        print(f"Error loading drivers: {e}")
-    
-    return drivers
-
-
-def load_requests(path: str) -> List[Dict[str, float]]:
-    """Load requests from CSV into dicts (id, px, py, dx, dy, creation_time).
-
-    Accepts either explicit creation_time or defaults it to 0.
-    """
-    requests = []
-    try:
-        with open(path, 'r') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                requests.append({
-                    "id": int(row["id"]),
-                    "px": float(row["px"]),
-                    "py": float(row["py"]),
-                    "dx": float(row["dx"]),
-                    "dy": float(row["dy"]),
-                    "creation_time": int(row.get("creation_time", 0)),
-                })
-    except FileNotFoundError:
-        print(f"Warning: Request file not found: {path}")
-    except Exception as e:
-        print(f"Error loading requests: {e}")
-    
-    return requests
-
-
-def generate_drivers(n: int, width: int, height: int) -> List[dict]:
-    """Generate n random driver dicts within [0,width]x[0,height]."""
-    drivers = []
-    for i in range(n):
-        drivers.append({
-            "id": i + 1,
-            "x": random.uniform(0, width),
-            "y": random.uniform(0, height),
-            "speed": 1.5,
-        })
-    return drivers
-
-
+# generate_requests uses Phase 2's RequestGenerator (creates Request objects)
 def generate_requests(start_t: int, out_list: List[dict], 
                       req_rate: float, width: int, height: int) -> None:
-    """Generate stochastic requests (Poisson-like) and append to out_list.
-
-    Uses RequestGenerator(rate=req_rate, width=width, height=height) at start_t.
-    """
+    """Generate stochastic requests (Poisson-like) and append to out_list."""
     gen = RequestGenerator(rate=req_rate, width=width, height=height)
     new_requests = gen.maybe_generate(start_t)
     
     for req in new_requests:
-        out_list.append({
-            "id": req.id,
-            "px": req.pickup.x,
-            "py": req.pickup.y,
-            "dx": req.dropoff.x,
-            "dy": req.dropoff.y,
-            "creation_time": req.creation_time,
-        })
+        out_list.append(request_to_dict(req))
 
 
 def init_state(drivers_data: List[dict], requests_data: List[dict],
                timeout: int, req_rate: float, width: int, height: int) -> dict:
-    """Build DeliverySimulation from procedural driver/request dicts.
-
-    Converts dicts to Driver/Request objects, wires policy/mutation/generator,
-    seeds the simulation, starts time-series tracking, and returns the GUI state dict.
-    """
+    """Build DeliverySimulation from procedural driver/request dicts."""
     global _simulation
     
-    # Create OOP Driver objects
-    drivers = []
-    for idx, d_dict in enumerate(drivers_data):
-        driver = Driver(
-            id=d_dict.get("id", idx),  # Use index as id if not provided (CSV case)
-            position=Point(d_dict["x"], d_dict["y"]),
-            speed=d_dict.get("speed", 1.5),
-            behaviour=LazyBehaviour(idle_ticks_needed=3),
-        )
-        drivers.append(driver)
+    # Convert dicts to OOP objects using helpers
+    drivers = [create_driver_from_dict(d, idx) for idx, d in enumerate(drivers_data)]
+    requests = [create_request_from_dict(r) for r in requests_data]
     
-    # Create OOP Request objects
-    requests = []
-    for r_dict in requests_data:
-        # Handle both Phase 1 format (t) and Phase 2 format (creation_time)
-        creation_time = r_dict.get("creation_time", r_dict.get("t", 0))
-        request = Request(
-            id=r_dict["id"],
-            pickup=Point(r_dict["px"], r_dict["py"]),
-            dropoff=Point(r_dict["dx"], r_dict["dy"]),
-            creation_time=creation_time,
-        )
-        requests.append(request)
-    
-    # Create policy and mutation rule
+    # Create dispatch policy (determines how requests are assigned to drivers)
     policy = GlobalGreedy()
+    
+    # Create mutation rule (allows drivers to change behaviour based on performance)
     mutation_rule = PerformanceBasedMutation(window=5, earnings_threshold=5.0)
     
-    # Create request generator
+    # Create request generator (generates new requests each tick)
     generator = RequestGenerator(rate=req_rate, width=width, height=height)
     
-    # Create DeliverySimulation
+    # Create the main simulation object
     _simulation = DeliverySimulation(
         drivers=drivers,
         dispatch_policy=policy,
@@ -210,14 +96,14 @@ def simulate_step(state: dict) -> Tuple[dict, dict]:
     if _simulation is None:
         raise RuntimeError("Simulation not initialized. Call init_state() first.")
     
-    # Run one simulation tick
+    # Run one simulation tick (executes 9-step orchestration in engine_helpers)
     _simulation.tick()
     
-    # Record metrics for post-simulation reporting
+    # Record metrics for post-simulation reporting (time-series tracking)
     if _time_series is not None:
         _time_series.record_tick(_simulation)
     
-    # Convert to state dict and extract metrics using helpers
+    # Convert OOP state back to dicts for GUI consumption
     updated_state = sim_to_state_dict(_simulation)
     metrics = get_adapter_metrics(_simulation)
     
@@ -251,27 +137,8 @@ def get_plot_data():
         raise RuntimeError("Simulation not initialized. Call init_simulation() first.")
 
     state = sim_to_state_dict(_simulation)
-    drivers = state.get("drivers", [])
-    pending = state.get("pending", [])
+    return get_plot_data_from_state(state)
 
-    drivers_xy = [(float(d.get("x", 0.0)), float(d.get("y", 0.0))) for d in drivers]
-    pickup_xy = []
-    dropoff_xy = []
-
-    for r in pending:
-        status = r.get("status")
-        if status in ("WAITING", "ASSIGNED"):
-            pickup_xy.append((float(r["px"]), float(r["py"])))
-        elif status == "PICKED":
-            dropoff_xy.append((float(r["dx"]), float(r["dy"])))
-
-    dir_quiver: List[Tuple[float, float, float, float]] = []
-    return drivers_xy, pickup_xy, dropoff_xy, dir_quiver
-
-
-# ====================================================================
-# Adapter factory function
-# ====================================================================
 
 # ====================================================================
 # Post-simulation reporting functions
@@ -286,6 +153,10 @@ def get_time_series() -> Optional[SimulationTimeSeries]:
     """Return the recorded SimulationTimeSeries (or None if not started)."""
     return _time_series
 
+
+# ====================================================================
+# Backend factory (exposes 6 functions to GUI via sim_mod)
+# ====================================================================
 
 def create_phase2_backend() -> Dict[str, Callable]:
     """Return the 6-function backend dict the GUI expects."""

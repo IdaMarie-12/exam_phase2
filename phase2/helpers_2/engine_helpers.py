@@ -88,8 +88,91 @@ Use constants when:         Operation is always the same cost regardless of inpu
 
 """
 
-from ..request import WAITING, ASSIGNED, PICKED, EXPIRED
+from ..request import Request, WAITING, ASSIGNED, PICKED, EXPIRED
 from ..offer import Offer
+from ..point import Point
+from ..driver import Driver
+from ..behaviours import LazyBehaviour
+
+
+# ====================================================================
+# DICT <-> OBJECT CONVERSION HELPERS (for adapter)
+# ====================================================================
+
+def create_driver_from_dict(d_dict: dict, idx: int = 0) -> "Driver":
+    """Convert a driver dict to a Driver object. O(1).
+    
+    Args:
+        d_dict: Dict with keys 'x', 'y', optionally 'id', 'speed'.
+        idx: Fallback id if 'id' not in dict.
+    
+    Returns:
+        Driver object with LazyBehaviour.
+    """
+    return Driver(
+        id=d_dict.get("id", idx),
+        position=Point(d_dict["x"], d_dict["y"]),
+        speed=d_dict.get("speed", 1.5),
+        behaviour=LazyBehaviour(idle_ticks_needed=3),
+    )
+
+
+def create_request_from_dict(r_dict: dict) -> "Request":
+    """Convert a request dict to a Request object. O(1).
+    
+    Args:
+        r_dict: Dict with keys 'id', 'px', 'py', 'dx', 'dy', 
+                and optionally 'creation_time' or 't'.
+    
+    Returns:
+        Request object.
+    """
+    creation_time = r_dict.get("creation_time", r_dict.get("t", 0))
+    return Request(
+        id=r_dict["id"],
+        pickup=Point(r_dict["px"], r_dict["py"]),
+        dropoff=Point(r_dict["dx"], r_dict["dy"]),
+        creation_time=creation_time,
+    )
+
+
+def request_to_dict(req: "Request") -> dict:
+    """Convert a Request object to a dict for GUI. O(1)."""
+    return {
+        "id": req.id,
+        "px": req.pickup.x,
+        "py": req.pickup.y,
+        "dx": req.dropoff.x,
+        "dy": req.dropoff.y,
+        "creation_time": req.creation_time,
+    }
+
+
+def get_plot_data_from_state(state: dict):
+    """Extract plot-ready tuples from state dict. O(D+R).
+    
+    Args:
+        state: State dict with 'drivers' and 'pending' keys.
+    
+    Returns:
+        (drivers_xy, pickup_xy, dropoff_xy, dir_quiver) tuples.
+    """
+    drivers = state.get("drivers", [])
+    pending = state.get("pending", [])
+
+    drivers_xy = [(float(d.get("x", 0.0)), float(d.get("y", 0.0))) for d in drivers]
+    pickup_xy = []
+    dropoff_xy = []
+
+    for r in pending:
+        status = r.get("status", "").upper()
+        if status in ("WAITING", "ASSIGNED"):
+            pickup_xy.append((float(r["px"]), float(r["py"])))
+        elif status == "PICKED":
+            dropoff_xy.append((float(r["dx"]), float(r["dy"])))
+
+    dir_quiver = []
+    return drivers_xy, pickup_xy, dropoff_xy, dir_quiver
 
 
 # ====================================================================
