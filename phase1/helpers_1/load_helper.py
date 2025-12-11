@@ -89,29 +89,6 @@ def parse_float(value: str, field_name: str, line_num: int) -> float:
         )
 
 
-def parse_int(value: str, field_name: str, line_num: int) -> int:
-    """
-    Parse a string value as an integer with error handling.
-    
-    Parameters:
-        value (str): The value to parse
-        field_name (str): Name of the field (for error messages)
-        line_num (int): Line number in file (for error messages)
-        
-    Returns:
-        int: The parsed value
-        
-    Raises:
-        ValueError: If conversion fails
-    """
-    try:
-        return int(value)
-    except ValueError:
-        raise ValueError(
-            f"Line {line_num}: '{field_name}' must be an integer, got '{value}'"
-        )
-
-
 def validate_coordinate(value: float, field_name: str, line_num: int, 
                        min_val: float = 0, max_val: float = 50) -> float:
     """

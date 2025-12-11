@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from .point import Point
-from .helpers_2.core_helpers import is_at_target, move_towards, calculate_points, record_assignment_start, record_completion, finalize_trip
+from .helpers_2.core_helpers import is_at_target, move_towards, record_assignment_start, record_completion
 
 if TYPE_CHECKING:
     from phase2.behaviours import DriverBehaviour
@@ -27,7 +27,6 @@ class Driver:
     history: List[Dict[str, Any]] = field(default_factory=list)
     idle_since: Optional[int] = 0
     earnings: float = 0.0
-    points: float = 0.0
 
     # Convenience helpers
     def is_idle(self) -> bool:
@@ -93,17 +92,15 @@ class Driver:
         req = self.current_request
         req.mark_delivered(time)
 
-        # Calculate fare (straight-line distance) and compute points
+        # Calculate fare (straight-line distance)
         fare = req.pickup.distance_to(req.dropoff)
         wait = req.wait_time
-        points = calculate_points(fare, wait)
 
-        # Record completion with all trip metrics
-        record_completion(self.history, req.id, req.creation_time, time, fare, wait, points)
+        # Record completion with trip metrics
+        record_completion(self.history, req.id, req.creation_time, time, fare, wait)
         
-        # Update aggregates and reset state
+        # Update earnings and reset state
         self.earnings += fare
-        self.points += points
         self.current_request = None
         self.status = "IDLE"
         self.idle_since = time
