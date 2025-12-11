@@ -107,4 +107,3 @@ class Driver:
         self.current_request = None
         self.status = "IDLE"
         self.idle_since = time
-
