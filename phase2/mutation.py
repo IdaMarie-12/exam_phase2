@@ -15,7 +15,7 @@ import random
 
 from .driver import Driver
 from .behaviours import GreedyDistanceBehaviour, EarningsMaxBehaviour, LazyBehaviour
-from .helpers_2.mutation_helpers import (
+from .helpers_2.core_helpers import (
     get_driver_history_window,
     calculate_average_fare,
     get_behaviour_name,
@@ -125,12 +125,12 @@ class HybridMutation(MutationRule):
 
     def _average_fare(self, driver: Driver) -> Optional[float]:
         """Return average fare from last window trips, or None if insufficient history."""
-        history = get_driver_history_window(driver, self.window)
+        history = get_driver_history_window(driver.history, self.window)
         return calculate_average_fare(history)
 
     def _is_stagnating(self, driver: Driver) -> bool:
         """Check if driver earnings are stagnating (no improvement over recent window)."""
-        history = get_driver_history_window(driver, self.stagnation_window)
+        history = get_driver_history_window(driver.history, self.stagnation_window)
         if len(history) < 2:
             return False
         

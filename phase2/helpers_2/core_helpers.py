@@ -121,3 +121,25 @@ def record_completion(history: list, request_id: int, creation_time: int,
         "request_id": request_id,
         "start_time": creation_time,
     })
+
+
+# ============================================================
+# Mutation helpers (used by mutation.py)
+# ============================================================
+
+def get_driver_history_window(history: list, window: int) -> list:
+    """Return the last `window` entries from a driver's history."""
+    return history[-window:] if history else []
+
+
+def calculate_average_fare(history: list) -> float | None:
+    """Calculate average fare from history entries. Returns None if empty."""
+    if not history:
+        return None
+    fares = [entry.get("fare", 0.0) for entry in history]
+    return sum(fares) / len(fares) if fares else None
+
+
+def get_behaviour_name(behaviour) -> str:
+    """Return the class name of a behaviour instance."""
+    return type(behaviour).__name__
