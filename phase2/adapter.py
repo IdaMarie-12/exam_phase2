@@ -66,8 +66,11 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
     # Create mutation rule (allows drivers to change behaviour based on performance)
     mutation_rule = PerformanceBasedMutation(window=5, earnings_threshold=5.0)
     
-    # Create request generator (generates new requests each tick)
-    generator = RequestGenerator(rate=req_rate, width=width, height=height)
+    # Create request generator
+    # If CSV requests provided → don't generate new ones (rate=0)
+    # If no CSV requests → generate dynamically using req_rate
+    effective_rate = 0 if len(requests_data) > 0 else req_rate
+    generator = RequestGenerator(rate=effective_rate, width=width, height=height)
     
     # Create the main simulation object
     _simulation = DeliverySimulation(
