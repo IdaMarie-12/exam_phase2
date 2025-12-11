@@ -10,7 +10,7 @@ from phase1.io_mod import load_drivers, load_requests, generate_drivers
 
 # Phase 2 OOP components
 from .generator import RequestGenerator
-from .policies import GlobalGreedy
+from .policies import GlobalGreedyPolicy
 from .mutation import PerformanceBasedMutation
 from .simulation import DeliverySimulation
 
@@ -61,7 +61,7 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
     requests = [create_request_from_dict(r) for r in requests_data]
     
     # Create dispatch policy (determines how requests are assigned to drivers)
-    policy = GlobalGreedy()
+    policy = GlobalGreedyPolicy()
     
     # Create mutation rule (allows drivers to change behaviour based on performance)
     mutation_rule = PerformanceBasedMutation(window=5, earnings_threshold=5.0)
