@@ -11,7 +11,7 @@ from phase1.io_mod import load_drivers, load_requests, generate_drivers
 # Phase 2 OOP components
 from .generator import RequestGenerator
 from .policies import GlobalGreedyPolicy
-from .mutation import PerformanceBasedMutation
+from .mutation import HybridMutation
 from .simulation import DeliverySimulation
 
 # Helper functions for dict <-> object conversion and state extraction
@@ -64,7 +64,7 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
     policy = GlobalGreedyPolicy()
     
     # Create mutation rule (allows drivers to change behaviour based on performance)
-    mutation_rule = PerformanceBasedMutation(window=5, earnings_threshold=5.0)
+    mutation_rule = HybridMutation(window=5, low_threshold=3.0, high_threshold=10.0)
     
     # Create request generator
     # If CSV requests provided → don't generate new ones (rate=0)
@@ -96,8 +96,20 @@ def simulate_step(state: dict) -> Tuple[dict, dict]:
     """Advance one tick, record metrics, and return (state_dict, metrics)."""
     global _simulation, _time_series
     
+    # If _simulation is None, attempt to recover by checking if state has been initialized
     if _simulation is None:
-        raise RuntimeError("Simulation not initialized. Call init_state() first.")
+        # Check if we have a valid state dict (should have 't', 'drivers', 'pending' keys)
+        if not state or "drivers" not in state:
+            raise RuntimeError(
+                "Simulation not initialized. Call init_state() first. "
+                "State dict is missing required keys: 't', 'drivers', 'pending'."
+            )
+        # State exists but simulation object was lost - this shouldn't happen in normal flow
+        # but we can't recover without the actual simulation objects
+        raise RuntimeError(
+            "Simulation not initialized. Call init_state() first. "
+            "The simulation context was lost (possible module reload)."
+        )
     
     # Run one simulation tick (executes 9-step orchestration in engine_helpers)
     _simulation.tick()
