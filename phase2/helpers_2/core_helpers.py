@@ -77,29 +77,6 @@ def move_towards(current: "Point", target: "Point", distance: float) -> "Point":
     return Point(current.x + dx, current.y + dy)
 
 
-def calculate_points(fare: float, wait_time: int) -> float:
-    """
-    Calculate driver points earned from a trip.
-    Formula: points = max(0, fare - 0.1 * wait_time)
-    
-    Used by Driver.complete_dropoff() to calculate points for mutation.
-    
-    Args:
-        fare: Trip fare (distance)
-        wait_time: Request wait time (ticks)
-        
-    Returns:
-        float: Points earned (>= 0)
-        
-    Example:
-        >>> calculate_points(10.0, 5)
-        9.5
-        >>> calculate_points(2.0, 50)  # Penalized too long
-        0.0
-    """
-    return max(0.0, fare - 0.1 * wait_time)
-
-
 def record_assignment_start(history: list, request_id: int, current_time: int) -> None:
     """
     Record the start of a new delivery trip in history.
@@ -125,12 +102,9 @@ def record_assignment_start(history: list, request_id: int, current_time: int) -
 
 
 def record_completion(history: list, request_id: int, creation_time: int,
-                     time: int, fare: float, wait: int, points: float) -> None:
+                     time: int, fare: float, wait: int) -> None:
     """
-    Record trip completion with full trip metrics in history.
-    
-    Adds a comprehensive record of the completed delivery including
-    fare earned, wait time, points earned, and timing information.
+    Record trip completion with trip metrics in history.
     
     Args:
         history: Driver's history list to append to
@@ -139,45 +113,11 @@ def record_completion(history: list, request_id: int, creation_time: int,
         time: Time when dropoff was completed
         fare: Amount earned (pickup-to-dropoff distance)
         wait: Wait time for customer pickup
-        points: Points earned (max(0, fare - 0.1 * wait))
-        
-    Example:
-        >>> history = []
-        >>> record_completion(history, 42, 0, 100, 15.0, 5, 14.5)
-        >>> history[0]["fare"]
-        15.0
     """
     history.append({
         "time": time,
         "fare": fare,
         "wait": wait,
-        "points": points,
         "request_id": request_id,
         "start_time": creation_time,
     })
-
-
-def finalize_trip(earnings: list, points_list: list, fare: float, points: float) -> None:
-    """
-    Update aggregates for trip finalization.
-    
-    Updates driver's total earnings and points by appending values to
-    the respective lists (allows functional style updates).
-    
-    Args:
-        earnings: List to accumulate earnings (typically [total_earnings])
-        points_list: List to accumulate points (typically [total_points])
-        fare: Fare amount to add to earnings
-        points: Points amount to add to total
-        
-    Example:
-        >>> earnings = [100.0]
-        >>> points_list = [50.0]
-        >>> finalize_trip(earnings, points_list, 15.0, 10.5)
-        >>> earnings[0]
-        115.0
-        >>> points_list[0]
-        60.5
-    """
-    earnings[0] += fare
-    points_list[0] += points
