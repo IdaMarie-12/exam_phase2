@@ -100,15 +100,8 @@ class EarningsMaxBehaviour(DriverBehaviour):
         if not isinstance(time, int):
             raise TypeError(f"decide() requires int time, got {type(time).__name__}")
         
-        # Use offer's estimated travel time and reward
-        travel_time = offer.estimated_travel_time
-        
-        # Reject if travel time is invalid
-        if travel_time <= 0:
-            return False
-        
         # Accept if reward per time unit meets threshold
-        return offer.estimated_reward / travel_time >= self.threshold
+        return offer.reward_per_time() >= self.threshold
 
 
 class LazyBehaviour(DriverBehaviour):
