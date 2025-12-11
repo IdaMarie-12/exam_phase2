@@ -398,25 +398,38 @@ def _show_mutation_window(simulation) -> None:
         rule_text = f"MUTATION RULE CONFIGURATION\n" + "=" * 45 + "\n\n"
         rule_text += f"Active Rule: {rule_type}\n\n"
         
-        if rule_type == "PerformanceBasedMutation":
+        if rule_type == "HybridMutation":
             if hasattr(rule, 'window'):
-                rule_text += f"Observation Window:  {rule.window} ticks\n"
-            if hasattr(rule, 'earnings_threshold'):
-                rule_text += f"Earnings Threshold:  {rule.earnings_threshold:.2f}\n"
-            if hasattr(rule, 'mutation_count'):
-                rule_text += f"Mutations Performed: {rule.mutation_count}\n"
-            rule_text += "\nTrigger Condition:\n"
-            rule_text += "  Drivers with earnings below threshold\n"
-            rule_text += "  switch to higher-earning behaviours\n"
+                rule_text += f"Performance Window:  {rule.window} ticks\n"
+            if hasattr(rule, 'low_threshold'):
+                rule_text += f"Low Earnings Threshold:  {rule.low_threshold:.2f}\n"
+            if hasattr(rule, 'high_threshold'):
+                rule_text += f"High Earnings Threshold:  {rule.high_threshold:.2f}\n"
+            if hasattr(rule, 'cooldown_ticks'):
+                rule_text += f"Mutation Cooldown:  {rule.cooldown_ticks} ticks\n"
+            if hasattr(rule, 'stagnation_window'):
+                rule_text += f"Stagnation Window:  {rule.stagnation_window} ticks\n"
+            rule_text += "\nTrigger Conditions:\n"
+            rule_text += "  Low earnings → Switch to Greedy\n"
+            rule_text += "  High earnings → Switch to EarningsMax\n"
+            rule_text += "  Stagnating → Explore random behaviour\n"
             
-        elif rule_type == "ExplorationMutation":
-            if hasattr(rule, 'mutation_probability'):
-                rule_text += f"Mutation Probability: {rule.mutation_probability:.3f}\n"
-            if hasattr(rule, 'mutation_count'):
-                rule_text += f"Mutations Performed: {rule.mutation_count}\n"
-            rule_text += "\nTrigger Condition:\n"
-            rule_text += "  Random exploration with fixed probability\n"
-            rule_text += "  each simulation tick\n"
+            # Add mutation transitions data
+            if hasattr(rule, 'mutation_transitions') and rule.mutation_transitions:
+                rule_text += "\nBehaviour Transitions:\n"
+                total_mutations = sum(rule.mutation_transitions.values())
+                for (from_behaviour, to_behaviour), count in sorted(rule.mutation_transitions.items()):
+                    pct = (count / total_mutations * 100) if total_mutations > 0 else 0
+                    rule_text += f"  {from_behaviour} → {to_behaviour}: {count}\n"
+            
+            # Add detailed mutation history (last 10 mutations shown)
+            if hasattr(rule, 'mutation_history') and rule.mutation_history:
+                rule_text += "\nMutation History (latest 10):\n"
+                for entry in rule.mutation_history[-10:]:
+                    reason = entry['reason'].replace('_', ' ').title()
+                    rule_text += f"  t{entry['time']:4d}: D{entry['driver_id']:2d} " +\
+                                f"{entry['from_behaviour'][:4]}→{entry['to_behaviour'][:4]} " +\
+                                f"({reason}, fare:{entry['avg_fare']:.1f})\n"
         else:
             rule_text += f"Custom Rule: {rule_type}\n"
         
@@ -431,6 +444,9 @@ def _show_mutation_window(simulation) -> None:
     total_requests = simulation.served_count + simulation.expired_count
     service_level = (simulation.served_count / total_requests * 100) if total_requests > 0 else 0
     
+    # Count drivers that have mutated
+    mutated_drivers = sum(1 for d in simulation.drivers if hasattr(d, '_last_mutation_time') and d._last_mutation_time > -float("inf"))
+    
     impact_text = "PERFORMANCE IMPACT\n" + "=" * 45 + "\n\n"
     impact_text += f"Final Service Level:  {service_level:.1f}%\n"
     impact_text += f"  • Served:           {simulation.served_count}\n"
@@ -439,6 +455,7 @@ def _show_mutation_window(simulation) -> None:
     impact_text += f"Average Wait Time:    {simulation.avg_wait:.2f} ticks\n"
     impact_text += f"Simulation Duration:  {simulation.time} ticks\n"
     impact_text += f"Total Drivers:        {len(simulation.drivers)}\n"
+    impact_text += f"Mutated Drivers:      {mutated_drivers} ({mutated_drivers/len(simulation.drivers)*100:.1f}%)\n"
     
     ax2.text(0.1, 0.95, impact_text, transform=ax2.transAxes,
             fontsize=10, verticalalignment='top', family='monospace',

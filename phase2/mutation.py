@@ -1,29 +1,11 @@
 """
 Behaviour mutation strategies for driver evolution.
 
-Mutations allow drivers to adapt their decision strategies based on performance.
-This module provides an abstract MutationRule base class and concrete implementations
-for performance-based and exploration-based mutations.
+Mutations allow drivers to adapt strategies based on performance.
+Provides MutationRule (ABC) with HybridMutation implementation:
+- HybridMutation: Performance-based primary, stagnation-based exploration
 
-Architecture:
-    MutationRule (ABC)
-        ├── PerformanceBasedMutation - Switch to greedier behaviour if earnings low
-        └── ExplorationMutation - Stochastically explore new strategies
-
-Lifecycle:
-    1. Simulation creates mutation_rule (e.g., PerformanceBasedMutation)
-    2. On each tick, simulation calls mutation_rule.maybe_mutate(driver, time)
-    3. Mutation inspects driver's history and current behaviour
-    4. If conditions met, mutation changes driver.behaviour to new strategy
-    5. Next offers, driver uses new behaviour to make decisions
-
-Example:
-    >>> mutation = PerformanceBasedMutation(window=5, earnings_threshold=5.0)
-    >>> driver.behaviour = LazyBehaviour(...)  # Start lazy
-    >>> for tick in range(100):
-    ...     # If avg earnings over last 5 trips < 5.0, switch to greedy
-    ...     mutation.maybe_mutate(driver, tick)
-    ...     # Driver now uses GreedyDistanceBehaviour if earnings too low
+Lifecycle: Simulation calls mutation.maybe_mutate(driver, time) each tick.
 """
 
 from __future__ import annotations
@@ -33,6 +15,11 @@ import random
 
 from .driver import Driver
 from .behaviours import GreedyDistanceBehaviour, EarningsMaxBehaviour, LazyBehaviour
+from .helpers_2.mutation_helpers import (
+    get_driver_history_window,
+    calculate_average_fare,
+    get_behaviour_name,
+)
 
 if TYPE_CHECKING:
     from typing import List, Dict, Any
@@ -43,14 +30,22 @@ if TYPE_CHECKING:
 # ====================================================================
 # Used when creating new behaviour instances during mutations
 
-# PerformanceBasedMutation: When earnings are too low, switch to greedy
-PERF_MUTATION_GREEDY_MAX_DISTANCE = 10.0
+# HybridMutation: Thresholds for when to switch behaviours
+HYBRID_LOW_EARNINGS_THRESHOLD = 3.0      # Switch to greedy if earnings drop below this
+HYBRID_HIGH_EARNINGS_THRESHOLD = 10.0    # Switch to earnings-max if earnings exceed this
+HYBRID_COOLDOWN_TICKS = 10               # Minimum ticks between mutations (avoid churn)
+HYBRID_STAGNATION_WINDOW = 8             # If earnings stagnate for this many ticks, explore
+HYBRID_EXPLORATION_PROBABILITY = 0.3     # 30% chance to explore when stagnating
 
-# ExplorationMutation: Random behaviour parameters when exploring
-EXPL_GREEDY_MAX_DISTANCE = 15.0
-EXPL_EARNINGS_MIN_REWARD_PER_TIME = 0.5
-EXPL_LAZY_IDLE_TICKS_NEEDED = 3
-EXPL_LAZY_MAX_DISTANCE = 5.0
+# Greedy mutation: Accept nearby pickups
+GREEDY_MAX_DISTANCE = 10.0
+
+# EarningsMax mutation: Accept high-reward-per-time jobs
+EARNINGS_MIN_REWARD_PER_TIME = 0.8
+
+# Lazy mutation: Accept only after rest
+LAZY_IDLE_TICKS_NEEDED = 5
+LAZY_MAX_DISTANCE = 5.0
 
 
 # ====================================================================
@@ -58,291 +53,224 @@ EXPL_LAZY_MAX_DISTANCE = 5.0
 # ====================================================================
 
 class MutationRule(ABC):
-    """
-    Abstract base class for all driver mutation rules.
-    
-    Mutations implement adaptive strategies where drivers can change their
-    decision-making behaviour based on observed performance. This creates
-    realistic agent evolution where poor performers adapt to new strategies.
-    
-    Subclasses must implement the maybe_mutate() method which:
-    1. Examines the driver's history and current state
-    2. Decides if mutation conditions are met
-    3. Changes driver.behaviour in-place if appropriate
-    
-    Key Design:
-        - Mutations happen during simulation ticks (stochastic timing)
-        - Multiple mutations can be chained or used together
-        - Each mutation is independent (can be composed)
-        - In-place modification allows simulation to observe changes
-    
-    Example Workflow:
-        >>> rule = PerformanceBasedMutation(window=5, earnings_threshold=5.0)
-        >>> # Driver with poor earnings switches strategy
-        >>> rule.maybe_mutate(driver, time=100)
-        >>> # driver.behaviour is now GreedyDistanceBehaviour if conditions met
-    """
+    """Abstract base for driver mutation strategies. Subclasses implement maybe_mutate()."""
 
     @abstractmethod
     def maybe_mutate(self, driver: Driver, time: int) -> None:
-        """
-        Possibly mutate the driver's behaviour based on history and conditions.
-        
-        Implementations should:
-        1. Check driver.history for performance metrics
-        2. Evaluate mutation condition (earnings, idle time, etc.)
-        3. If condition met, replace driver.behaviour with new strategy
-        4. If condition not met, leave behaviour unchanged
-        
-        This is called once per simulation tick per driver, so should be
-        computationally efficient.
-        
-        Args:
-            driver: Driver to possibly mutate
-            time: Current simulation time (in ticks)
-            
-        Returns:
-            None (modifies driver.behaviour in-place if mutation occurs)
-            
-        Note:
-            Subclasses should handle:
-            - Empty history gracefully (no completed trips yet)
-            - Division by zero in ratio calculations
-            - Stochastic conditions (probability thresholds)
-        """
-        return NotImplemented
+        """Possibly change driver.behaviour based on performance/conditions."""
+        raise NotImplementedError("Subclasses must implement maybe_mutate()")
 
 
 
 # ====================================================================
-# Performance-Based Mutation
+# Hybrid Mutation (Performance + Exploration)
 # ====================================================================
 
-class PerformanceBasedMutation(MutationRule):
-    """
-    Adaptive mutation strategy based on driver earnings performance.
+class HybridMutation(MutationRule):
+    """Performance-based primary, exploration-based secondary mutation strategy.
     
-    Monitors driver's average earnings over a sliding window of completed trips.
-    If average falls below threshold, driver switches to greedier behaviour
-    (GreedyDistanceBehaviour) to increase pickup frequency and recovery earnings.
+    Adapts driver behaviour based on recent earnings performance:
+    - LOW earnings: Switch to GREEDY (accept more jobs regardless of distance)
+    - HIGH earnings: Switch to EARNINGS-MAX (become picky, optimize reward-per-time)
+    - STAGNATING earnings: Explore other behaviours to break pattern (30% chance)
+    - COOLDOWN: Driver can mutate at most once per 10 ticks (avoid constant switching)
     
-    This creates realistic adaptation: struggling drivers become less selective
-    and more willing to accept distant pickups to improve revenue.
-    
-    Strategy Logic:
-        1. Look at last N completed trips (window)
-        2. Calculate average fare per trip
-        3. If avg_fare < earnings_threshold:
-            - Switch to GreedyDistanceBehaviour (distance-focused)
-            - Allows driver to accept more distant offers
-            - Increases pickup frequency, improves earnings
-        4. If avg_fare >= earnings_threshold:
-            - Keep current behaviour (successful strategy)
-    
-    Parameters:
-        window: Number of recent trips to analyze (default: 5)
-                - Larger window: More stable but slower adaptation
-                - Smaller window: Quick adaptation but noisier
-        earnings_threshold: Minimum acceptable average fare (default: 5.0)
-                - Below this triggers mutation to greedier strategy
-                - Should be tuned to simulation parameters
-    
-    Example:
-        >>> mutation = PerformanceBasedMutation(window=5, earnings_threshold=5.0)
-        >>> # Driver has completed 10 trips with fares [2, 3, 2, 4, 3, ...]
-        >>> # Last 5 trips average: (2+4+3+2+4)/5 = 3.0 < 5.0
-        >>> mutation.maybe_mutate(driver, time=100)
-        >>> # driver.behaviour is now GreedyDistanceBehaviour(max_distance=10.0)
-        >>> # Next offers: driver will accept pickups up to 10.0 units away
-        
-    Design Notes:
-        - Only mutates if sufficient history exists (window trips completed)
-        - No mutation if driver has < window completed trips
-        - Greedy parameters (max_distance=10.0) chosen for balanced exploration
+    This models realistic driver adaptation: struggling drivers accept more work,
+    successful drivers become selective, stagnating drivers experiment, and all drivers
+    need time to adjust to new strategies before switching again.
     """
 
-    def __init__(self, window: int = 5, earnings_threshold: float = 5.0):
-        """
-        Initialize performance-based mutation rule.
-        
-        Args:
-            window: Number of recent trips to average (must be > 0)
-            earnings_threshold: Minimum avg fare before switching to greedy
-            
-        Raises:
-            ValueError: If window <= 0 or earnings_threshold < 0
-        """
+    def __init__(
+        self,
+        window: int = 5,
+        low_threshold: float = HYBRID_LOW_EARNINGS_THRESHOLD,
+        high_threshold: float = HYBRID_HIGH_EARNINGS_THRESHOLD,
+        cooldown_ticks: int = HYBRID_COOLDOWN_TICKS,
+        stagnation_window: int = HYBRID_STAGNATION_WINDOW,
+        exploration_prob: float = HYBRID_EXPLORATION_PROBABILITY
+    ):
+        """Initialize with earnings window, thresholds, cooldown, and stagnation parameters."""
         if window <= 0:
             raise ValueError(f"window must be > 0, got {window}")
-        if earnings_threshold < 0:
-            raise ValueError(f"earnings_threshold must be >= 0, got {earnings_threshold}")
+        if low_threshold < 0:
+            raise ValueError(f"low_threshold must be >= 0, got {low_threshold}")
+        if high_threshold < low_threshold:
+            raise ValueError(f"high_threshold must be >= low_threshold")
+        if cooldown_ticks < 0:
+            raise ValueError(f"cooldown_ticks must be >= 0, got {cooldown_ticks}")
+        if stagnation_window <= 0:
+            raise ValueError(f"stagnation_window must be > 0, got {stagnation_window}")
+        if not (0.0 <= exploration_prob <= 1.0):
+            raise ValueError(f"exploration_prob must be in [0, 1], got {exploration_prob}")
         
         self.window = window
-        self.earnings_threshold = earnings_threshold
+        self.low_threshold = low_threshold
+        self.high_threshold = high_threshold
+        self.cooldown_ticks = cooldown_ticks
+        self.stagnation_window = stagnation_window
+        self.exploration_prob = exploration_prob
+        
+        # Track mutations for reporting: {(from_behaviour, to_behaviour): count}
+        self.mutation_transitions = {}
+        
+        # Detailed mutation history for debugging/analysis
+        # List of {time, driver_id, from_behaviour, to_behaviour, reason}
+        self.mutation_history = []
+        
+        # Exit thresholds for behaviour-specific conditions
+        # More generous thresholds to allow drivers time in each behaviour
+        self.greedy_exit_threshold = 7.5        # Exit greedy only when earnings well-recovered (>25% above low threshold)
+        self.earnings_max_exit_threshold = 5.0  # Exit earnings-max when struggling significantly (<low threshold + 2)
+        self.lazy_min_success_threshold = 5.0   # Lazy is the neutral/reset behaviour
 
     def _average_fare(self, driver: Driver) -> Optional[float]:
-        """
-        Calculate average fare from driver's recent completed trips.
+        """Return average fare from last window trips, or None if insufficient history."""
+        history = get_driver_history_window(driver, self.window)
+        return calculate_average_fare(history)
+
+    def _is_stagnating(self, driver: Driver) -> bool:
+        """Check if driver earnings are stagnating (no improvement over recent window)."""
+        history = get_driver_history_window(driver, self.stagnation_window)
+        if len(history) < 2:
+            return False
         
-        Extracts the last N trip records from driver.history and computes
-        mean fare. Returns None if insufficient history (< window trips).
+        fares = [entry.get("fare", 0.0) for entry in history]
+        avg_fare = calculate_average_fare(history)
+        
+        if avg_fare is None or avg_fare < 0.1:
+            return False
+        
+        # Check variance: if 70%+ of trips within 5% of average, consider stagnating
+        tolerance = avg_fare * 0.05
+        stagnant_count = sum(1 for f in fares if abs(f - avg_fare) <= tolerance)
+        return stagnant_count >= len(fares) * 0.7
+
+    def _should_exit_behaviour(self, driver: Driver, avg_fare: Optional[float]) -> bool:
+        """Check if driver should exit their current behaviour based on earnings recovery/decline.
+        
+        Exit conditions (behaviour-specific):
+        - GreedyDistanceBehaviour: Exit if earnings improve to >= 6.0 (recovered, no longer struggling)
+        - EarningsMaxBehaviour: Exit if earnings drop below 6.0 (unsustainable, too picky)
+        - LazyBehaviour: No exit (neutral fallback behaviour)
         
         Args:
-            driver: Driver with history of completed trips
+            driver: Driver to check
+            avg_fare: Average fare from recent trips
             
         Returns:
-            float: Average fare over last window trips, or None if < window trips
-            
-        Example:
-            >>> driver.history = [
-            ...     {"request_id": 1, "fare": 5.0},
-            ...     {"request_id": 2, "fare": 3.5},
-            ...     {"request_id": 3, "fare": 6.0},
-            ... ]
-            >>> mutation._average_fare(driver)
-            4.833...
+            bool: True if driver should exit current behaviour
         """
-        history = driver.history[-self.window:]
-        if not history:
-            return None
-        total = sum(entry.get("fare", 0.0) for entry in history)
-        return total / len(history)
-
-    def maybe_mutate(self, driver: Driver, time: int) -> None:
-        """
-        Check if driver should switch to greedier behaviour based on earnings.
+        if avg_fare is None:
+            return False
         
-        Process:
-        1. Calculate average fare over last window trips
-        2. If no history available, skip mutation
-        3. If avg_fare < earnings_threshold, switch to GreedyDistanceBehaviour
-        4. Otherwise, leave behaviour unchanged
+        current_behaviour = get_behaviour_name(driver.behaviour)
+        
+        # GreedyDistanceBehaviour exit: earnings recovered to healthy level
+        if current_behaviour == "GreedyDistanceBehaviour":
+            return avg_fare >= self.greedy_exit_threshold
+        
+        # EarningsMaxBehaviour exit: earnings unsustainably low
+        if current_behaviour == "EarningsMaxBehaviour":
+            return avg_fare < self.earnings_max_exit_threshold
+        
+        # LazyBehaviour: Keep as neutral behaviour (no exit)
+        return False
+
+    def _record_detailed_mutation(self, driver_id: int, time: int, from_behaviour: str, 
+                                 to_behaviour: str, reason: str, avg_fare: Optional[float] = None) -> None:
+        """Record detailed mutation information for analysis.
         
         Args:
-            driver: Driver to possibly mutate
-            time: Current simulation time (not used, provided for interface)
-            
-        Example:
-            >>> mutation = PerformanceBasedMutation(window=5, earnings_threshold=5.0)
-            >>> mutation.maybe_mutate(driver, time=100)
-            >>> # If low earnings detected:
-            >>> # driver.behaviour = GreedyDistanceBehaviour(max_distance=10.0)
+            driver_id: ID of the driver being mutated
+            time: Simulation time of mutation
+            from_behaviour: Behaviour being exited
+            to_behaviour: New behaviour assigned
+            reason: Why mutation occurred (e.g., "exit_greedy_recovered", "performance_low_earnings")
+            avg_fare: Average fare at time of mutation (optional, for context)
         """
+        entry = {
+            "time": time,
+            "driver_id": driver_id,
+            "from_behaviour": from_behaviour,
+            "to_behaviour": to_behaviour,
+            "reason": reason,
+            "avg_fare": avg_fare
+        }
+        self.mutation_history.append(entry)
+
+    def _can_mutate(self, driver: Driver, time: int) -> bool:
+        """Check if driver is in cooldown period (can only mutate once per N ticks)."""
+        last_mutation_time = getattr(driver, "_last_mutation_time", -float("inf"))
+        return (time - last_mutation_time) >= self.cooldown_ticks
+
+    def _record_mutation(self, driver: Driver, time: int) -> None:
+        """Record that a mutation occurred at this time."""
+        driver._last_mutation_time = time
+    
+    def _track_transition(self, old_behaviour_name: str, new_behaviour_name: str) -> None:
+        """Track behaviour transition for reporting."""
+        key = (old_behaviour_name, new_behaviour_name)
+        self.mutation_transitions[key] = self.mutation_transitions.get(key, 0) + 1
+
+    def maybe_mutate(self, driver: Driver, time: int) -> None:
+        """Adapt behaviour based on performance: low→greedy, high→earnings-max, stagnating→explore.
+        
+        Applies exit conditions first: if driver should leave current behaviour, reset to LazyBehaviour.
+        Then applies performance-based mutations if conditions warrant change.
+        """
+        # Check cooldown: driver can only mutate once per N ticks
+        if not self._can_mutate(driver, time):
+            return
+        
         avg = self._average_fare(driver)
         if avg is None:
             return  # Not enough history yet
         
-        if avg < self.earnings_threshold:
-            driver.behaviour = GreedyDistanceBehaviour(max_distance=PERF_MUTATION_GREEDY_MAX_DISTANCE)
-
-
-
-# ====================================================================
-# Exploration-Based Mutation
-# ====================================================================
-
-class ExplorationMutation(MutationRule):
-    """
-    Stochastic mutation strategy for behavioural exploration.
-    
-    With fixed probability p on each tick, randomly switches driver's behaviour
-    to one of three strategies: GreedyDistanceBehaviour, EarningsMaxBehaviour,
-    or LazyBehaviour. This adds exploration to avoid getting stuck in poor
-    local optima and models drivers trying new approaches.
-    
-    Strategy Logic:
-        1. On each tick, generate random number r in [0, 1)
-        2. If r < p (probability threshold):
-            - Randomly choose one of three behaviours
-            - Replace driver.behaviour with new strategy
-            - Driver uses new strategy for next decisions
-        3. If r >= p:
-            - Keep current behaviour unchanged
-    
-    Parameters:
-        p: Probability of exploration on each tick (default: 0.1)
-           - p=0.0: Never explore (stick with current strategy)
-           - p=0.1: ~10% chance of exploration each tick
-           - p=1.0: Always explore (random each tick)
-    
-    Behaviour Distribution:
-        When exploration triggers, equally likely to get:
-        - GreedyDistanceBehaviour(max_distance=15.0)  - 1/3 probability
-        - EarningsMaxBehaviour(min_reward_per_time=0.5)  - 1/3 probability
-        - LazyBehaviour(idle_ticks_needed=3, max_distance=5.0)  - 1/3 probability
-    
-    Example Scenario:
-        >>> mutation = ExplorationMutation(p=0.1)
-        >>> driver.behaviour = LazyBehaviour(...)  # Start lazy
-        >>> for tick in range(1000):
-        ...     # Each tick, ~10% chance to randomly switch
-        ...     mutation.maybe_mutate(driver, tick)
-        ...     # Sometimes driver.behaviour becomes GreedyDistanceBehaviour
-        ...     # Sometimes EarningsMaxBehaviour, sometimes stays lazy
+        old_behaviour_name = get_behaviour_name(driver.behaviour)
         
-    Use Cases:
-        1. **Escape Local Optima:** Help drivers stuck in suboptimal strategies
-        2. **Realistic Behaviour:** Model drivers trying new approaches
-        3. **Exploration vs Exploitation:** Balance current strategy vs trying new ones
-        4. **Parameter Tuning:** Adjust p to control exploration rate
-    
-    Design Notes:
-        - Independent of driver history (doesn't look at performance)
-        - Pure stochasticity (random exploration)
-        - Can be combined with PerformanceBasedMutation for hybrid strategies
-        - Parameters for chosen behaviour are fixed (hardcoded)
-    """
-
-    def __init__(self, p: float = 0.1):
-        """
-        Initialize exploration-based mutation rule.
+        # EXIT CONDITION: Check if driver should leave current behaviour
+        if self._should_exit_behaviour(driver, avg):
+            # Exit current behaviour by resetting to neutral LazyBehaviour
+            reason = f"exit_{old_behaviour_name.lower()}"
+            driver.behaviour = LazyBehaviour(idle_ticks_needed=LAZY_IDLE_TICKS_NEEDED)
+            self._track_transition(old_behaviour_name, "LazyBehaviour")
+            self._record_detailed_mutation(driver.id, time, old_behaviour_name, "LazyBehaviour", reason, avg)
+            self._record_mutation(driver, time)
+            return  # Exit early, don't apply performance-based mutations this tick
         
-        Args:
-            p: Probability of exploration on each tick (must be in [0, 1])
-            
-        Raises:
-            ValueError: If p not in [0, 1]
-        """
-        if not (0.0 <= p <= 1.0):
-            raise ValueError(f"p must be in [0, 1], got {p}")
-        self.p = p
-
-    def maybe_mutate(self, driver: Driver, time: int) -> None:
-        """
-        Randomly explore new behaviours with probability p.
-        
-        Process:
-        1. Generate random number r in [0, 1)
-        2. If r >= p, skip mutation (keep current behaviour)
-        3. If r < p, randomly choose and switch to new behaviour:
-           - "greedy": GreedyDistanceBehaviour(max_distance=15.0)
-           - "earnings": EarningsMaxBehaviour(min_reward_per_time=0.5)
-           - "lazy": LazyBehaviour(idle_ticks_needed=3, max_distance=5.0)
-        
-        Args:
-            driver: Driver to possibly explore with
-            time: Current simulation time (not used, provided for interface)
-            
-        Example:
-            >>> mutation = ExplorationMutation(p=0.2)
-            >>> mutation.maybe_mutate(driver, time=100)
-            >>> # 20% chance: driver.behaviour changes to random new strategy
-            >>> # 80% chance: driver.behaviour unchanged
-            
-        Notes:
-            - Each behaviour chosen with equal probability (1/3 each)
-            - Parameters for behaviours are fixed (could be made configurable)
-            - Previous behaviour is lost (no history of past strategies)
-        """
-        if random.random() >= self.p:
-            return  # Skip exploration (keep current behaviour)
-
-        # Randomly choose new behaviour
-        choice = random.choice(["greedy", "earnings", "lazy"])
-        
-        if choice == "greedy":
-            driver.behaviour = GreedyDistanceBehaviour(max_distance=EXPL_GREEDY_MAX_DISTANCE)
-        elif choice == "earnings":
-            driver.behaviour = EarningsMaxBehaviour(min_reward_per_time=EXPL_EARNINGS_MIN_REWARD_PER_TIME)
-        else:  # choice == "lazy"
-            driver.behaviour = LazyBehaviour(idle_ticks_needed=EXPL_LAZY_IDLE_TICKS_NEEDED, max_distance=EXPL_LAZY_MAX_DISTANCE)
+        # PRIMARY: Performance-based switching
+        if avg < self.low_threshold:
+            # Struggling: switch to greedy (accept more jobs)
+            driver.behaviour = GreedyDistanceBehaviour(max_distance=GREEDY_MAX_DISTANCE)
+            self._track_transition(old_behaviour_name, "GreedyDistanceBehaviour")
+            self._record_detailed_mutation(driver.id, time, old_behaviour_name, "GreedyDistanceBehaviour", 
+                                         "performance_low_earnings", avg)
+            self._record_mutation(driver, time)
+        elif avg > self.high_threshold:
+            # Thriving: switch to earnings-max (become selective)
+            driver.behaviour = EarningsMaxBehaviour(min_reward_per_time=EARNINGS_MIN_REWARD_PER_TIME)
+            self._track_transition(old_behaviour_name, "EarningsMaxBehaviour")
+            self._record_detailed_mutation(driver.id, time, old_behaviour_name, "EarningsMaxBehaviour",
+                                         "performance_high_earnings", avg)
+            self._record_mutation(driver, time)
+        elif self._is_stagnating(driver):
+            # SECONDARY: Stagnating performance → explore to break pattern
+            if random.random() < self.exploration_prob:
+                # Randomly try a different behaviour
+                choice = random.choice(["greedy", "earnings", "lazy"])
+                if choice == "greedy":
+                    driver.behaviour = GreedyDistanceBehaviour(max_distance=GREEDY_MAX_DISTANCE)
+                    self._track_transition(old_behaviour_name, "GreedyDistanceBehaviour")
+                    self._record_detailed_mutation(driver.id, time, old_behaviour_name, "GreedyDistanceBehaviour",
+                                                 "stagnation_exploration", avg)
+                elif choice == "earnings":
+                    driver.behaviour = EarningsMaxBehaviour(min_reward_per_time=EARNINGS_MIN_REWARD_PER_TIME)
+                    self._track_transition(old_behaviour_name, "EarningsMaxBehaviour")
+                    self._record_detailed_mutation(driver.id, time, old_behaviour_name, "EarningsMaxBehaviour",
+                                                 "stagnation_exploration", avg)
+                else:  # choice == "lazy"
+                    driver.behaviour = LazyBehaviour(idle_ticks_needed=LAZY_IDLE_TICKS_NEEDED)
+                    self._track_transition(old_behaviour_name, "LazyBehaviour")
+                    self._record_detailed_mutation(driver.id, time, old_behaviour_name, "LazyBehaviour",
+                                                 "stagnation_exploration", avg)
+                self._record_mutation(driver, time)

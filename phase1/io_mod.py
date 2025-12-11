@@ -102,6 +102,9 @@ def generate_drivers(n: int, width: int, height: int) -> list[dict]:
     Raises:
         ValueError: If ``n`` is negative.
     """
+    # Ensure n is an integer (GUI might pass float)
+    n = int(n)
+    
     if n < 0:
         raise ValueError(f"Number of drivers must be non-negative, got {n}")
     
