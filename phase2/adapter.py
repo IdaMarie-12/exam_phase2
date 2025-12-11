@@ -1,29 +1,34 @@
 """
-Phase 2 Adapter: Bridges OOP backend with GUI's procedural interface.
+Phase 2 Adapter: Bridges the OOP simulation to the GUI’s procedural calls.
 
-This module translates between:
-- Phase 2 OOP architecture (DeliverySimulation, Driver, Request, etc.)
-- GUI's procedural interface (dict-based state, functional calls)
+What it does
+------------
+* Translates between Phase 2 classes (DeliverySimulation, Driver, Request, etc.)
+    and the dict-based interface that the GUI expects.
+* Exposes the six Phase 1-style functions the GUI currently calls, plus
+    assignment-aligned wrappers (init_simulation, step_simulation, get_plot_data).
+* Maintains module-level simulation and metrics so the GUI can step and render.
 
-The adapter provides 6 functions expected by gui/_engine.py:
-    1. load_drivers(path) -> List[dict]
-    2. load_requests(path) -> List[dict]
-    3. generate_drivers(n, width, height) -> List[dict]
-    4. generate_requests(start_t, out_list, req_rate, width, height) -> None
-    5. init_state(drivers, requests, timeout, req_rate, width, height) -> dict
-    6. simulate_step(state) -> (dict, dict)
+Key functions exposed to the GUI
+--------------------------------
+1) load_drivers(path) -> list[dict]
+2) load_requests(path) -> list[dict]
+3) generate_drivers(n, width, height) -> list[dict]
+4) generate_requests(start_t, out_list, req_rate, width, height) -> None
+5) init_state(drivers, requests, timeout, req_rate, width, height) -> dict
+6) simulate_step(state) -> (dict, dict)
 
-Architecture:
-    - Module-level _simulation stores the OOP DeliverySimulation instance
-    - Each function either works with dicts (load, generate) or manages OOP objects
-    - State dicts use "t", "drivers", "pending" keys for GUI compatibility
-    - Metrics dicts use "served", "expired", "avg_wait" keys for reporting
-    - Reuses helper functions from engine_helpers for state conversion
+Assignment wrappers
+-------------------
+* init_simulation(...) -> None (delegates to init_state)
+* step_simulation() -> (time, metrics) (delegates to simulate_step)
+* get_plot_data() -> plotting tuples derived from current state
 
-Usage:
-    from phase2.adapter import create_phase2_backend
-    backend = create_phase2_backend()
-    gui._engine.run_app(backend)
+State/metrics helpers
+---------------------
+* sim_to_state_dict converts the OOP sim to a dict for the GUI
+* get_adapter_metrics extracts served/expired/avg_wait from the sim
+* SimulationTimeSeries records metrics over time for post-run reporting
 """
 
 from __future__ import annotations
@@ -56,19 +61,9 @@ _time_series: SimulationTimeSeries | None = None  # Track metrics for post-simul
 # ====================================================================
 
 def load_drivers(path: str) -> List[Dict[str, float]]:
-    """
-    Load drivers from CSV file.
-    
-    Expected CSV format:
-        id,x,y,speed
-        1,0.0,0.0,1.5
-        2,10.0,10.0,1.5
-    
-    Args:
-        path: Path to driver CSV file
-        
-    Returns:
-        List of driver dicts with keys: id, x, y, speed
+    """Load drivers from CSV into dicts (id, x, y, speed).
+
+    Expected columns: id,x,y,speed. Missing speed defaults to 1.5.
     """
     drivers = []
     try:
@@ -90,19 +85,9 @@ def load_drivers(path: str) -> List[Dict[str, float]]:
 
 
 def load_requests(path: str) -> List[Dict[str, float]]:
-    """
-    Load requests from CSV file.
-    
-    Expected CSV format:
-        id,px,py,dx,dy,creation_time
-        1,5.0,5.0,10.0,10.0,0
-        2,15.0,15.0,20.0,20.0,1
-    
-    Args:
-        path: Path to request CSV file
-        
-    Returns:
-        List of request dicts with keys: id, px, py, dx, dy, creation_time
+    """Load requests from CSV into dicts (id, px, py, dx, dy, creation_time).
+
+    Accepts either explicit creation_time or defaults it to 0.
     """
     requests = []
     try:
@@ -126,17 +111,7 @@ def load_requests(path: str) -> List[Dict[str, float]]:
 
 
 def generate_drivers(n: int, width: int, height: int) -> List[dict]:
-    """
-    Generate n random drivers within grid bounds.
-    
-    Args:
-        n: Number of drivers to generate
-        width: Map width
-        height: Map height
-        
-    Returns:
-        List of driver dicts with random positions
-    """
+    """Generate n random driver dicts within [0,width]x[0,height]."""
     drivers = []
     for i in range(n):
         drivers.append({
@@ -150,17 +125,9 @@ def generate_drivers(n: int, width: int, height: int) -> List[dict]:
 
 def generate_requests(start_t: int, out_list: List[dict], 
                       req_rate: float, width: int, height: int) -> None:
-    """
-    Generate requests stochastically at given rate.
-    
-    Appends requests to out_list (Poisson-like generation).
-    
-    Args:
-        start_t: Starting time (typically current simulation time)
-        out_list: List to append generated requests to
-        req_rate: Expected requests per tick (Poisson λ)
-        width: Map width
-        height: Map height
+    """Generate stochastic requests (Poisson-like) and append to out_list.
+
+    Uses RequestGenerator(rate=req_rate, width=width, height=height) at start_t.
     """
     gen = RequestGenerator(rate=req_rate, width=width, height=height)
     new_requests = gen.maybe_generate(start_t)
@@ -178,21 +145,10 @@ def generate_requests(start_t: int, out_list: List[dict],
 
 def init_state(drivers_data: List[dict], requests_data: List[dict],
                timeout: int, req_rate: float, width: int, height: int) -> dict:
-    """
-    Initialize the simulation with drivers and requests.
-    
-    Creates OOP objects from procedural data and initializes DeliverySimulation.
-    
-    Args:
-        drivers_data: List of driver dicts from load_drivers or generate_drivers
-        requests_data: List of request dicts from load_requests or generate_requests
-        timeout: Request timeout in ticks
-        req_rate: Request generation rate (Poisson λ)
-        width: Map width
-        height: Map height
-        
-    Returns:
-        State dict ready for simulation
+    """Build DeliverySimulation from procedural driver/request dicts.
+
+    Converts dicts to Driver/Request objects, wires policy/mutation/generator,
+    seeds the simulation, starts time-series tracking, and returns the GUI state dict.
     """
     global _simulation
     
@@ -248,15 +204,7 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
 
 
 def simulate_step(state: dict) -> Tuple[dict, dict]:
-    """
-    Advance simulation by one tick.
-    
-    Args:
-        state: Current state dict (updated by reference in _simulation)
-        
-    Returns:
-        Tuple of (updated_state_dict, metrics_dict)
-    """
+    """Advance one tick, record metrics, and return (state_dict, metrics)."""
     global _simulation, _time_series
     
     if _simulation is None:
@@ -277,6 +225,51 @@ def simulate_step(state: dict) -> Tuple[dict, dict]:
 
 
 # ====================================================================
+# Assignment-aligned wrapper functions
+# ====================================================================
+
+def init_simulation(drivers_data: List[dict], requests_data: List[dict],
+                    timeout: int, req_rate: float, width: int, height: int) -> None:
+    """Assignment wrapper: initialize the DeliverySimulation (delegates to init_state)."""
+    init_state(drivers_data, requests_data, timeout, req_rate, width, height)
+
+
+def step_simulation() -> Tuple[int, dict]:
+    """Assignment wrapper: advance one tick and return (time, metrics)."""
+    if _simulation is None:
+        raise RuntimeError("Simulation not initialized. Call init_simulation() first.")
+
+    # Reuse existing simulate_step; we ignore the returned state here and surface time+metrics
+    state_dict = sim_to_state_dict(_simulation)
+    updated_state, metrics = simulate_step(state_dict)
+    return int(updated_state.get("t", 0)), metrics
+
+
+def get_plot_data():
+    """Assignment wrapper: return plot-ready tuples (drivers, pickups, dropoffs, arrows)."""
+    if _simulation is None:
+        raise RuntimeError("Simulation not initialized. Call init_simulation() first.")
+
+    state = sim_to_state_dict(_simulation)
+    drivers = state.get("drivers", [])
+    pending = state.get("pending", [])
+
+    drivers_xy = [(float(d.get("x", 0.0)), float(d.get("y", 0.0))) for d in drivers]
+    pickup_xy = []
+    dropoff_xy = []
+
+    for r in pending:
+        status = r.get("status")
+        if status in ("WAITING", "ASSIGNED"):
+            pickup_xy.append((float(r["px"]), float(r["py"])))
+        elif status == "PICKED":
+            dropoff_xy.append((float(r["dx"]), float(r["dy"])))
+
+    dir_quiver: List[Tuple[float, float, float, float]] = []
+    return drivers_xy, pickup_xy, dropoff_xy, dir_quiver
+
+
+# ====================================================================
 # Adapter factory function
 # ====================================================================
 
@@ -285,42 +278,17 @@ def simulate_step(state: dict) -> Tuple[dict, dict]:
 # ====================================================================
 
 def get_simulation() -> Optional[DeliverySimulation]:
-    """
-    Get the completed simulation instance for post-simulation analysis.
-    
-    Returns:
-        DeliverySimulation instance or None if not initialized
-    """
+    """Return the live DeliverySimulation or None if not initialized."""
     return _simulation
 
 
 def get_time_series() -> Optional[SimulationTimeSeries]:
-    """
-    Get recorded time-series metrics for plotting.
-    
-    Returns:
-        SimulationTimeSeries instance or None if not recorded
-    """
+    """Return the recorded SimulationTimeSeries (or None if not started)."""
     return _time_series
 
 
 def create_phase2_backend() -> Dict[str, Callable]:
-    """
-    Create Phase 2 backend dict for GUI compatibility.
-    
-    Returns a dict with 6 functions expected by gui/_engine.py:
-        - load_drivers
-        - load_requests
-        - generate_drivers
-        - generate_requests
-        - init_state
-        - simulate_step
-    
-    Example:
-        >>> backend = create_phase2_backend()
-        >>> from gui._engine import run_app
-        >>> run_app(backend)
-    """
+    """Return the 6-function backend dict the GUI expects."""
     return {
         "load_drivers": load_drivers,
         "load_requests": load_requests,
