@@ -203,7 +203,22 @@ def get_plot_data_from_state(state: dict):
 # ====================================================================
 
 def gen_requests(simulation):
-    """Generate new requests via request_generator.maybe_generate(). O(R)."""
+    """Generate new requests via request_generator.maybe_generate(), and inject pre-loaded CSV requests. O(R)."""
+    # First, check if there are pre-loaded CSV requests waiting to arrive
+    if hasattr(simulation, '_all_csv_requests') and hasattr(simulation, '_csv_requests_index'):
+        csv_idx = simulation._csv_requests_index
+        while csv_idx < len(simulation._all_csv_requests):
+            req = simulation._all_csv_requests[csv_idx]
+            if req.creation_time <= simulation.time:
+                # Request has arrived, add it
+                simulation.requests.append(req)
+                csv_idx += 1
+            else:
+                # Requests are ordered by creation_time, so we can stop here
+                break
+        simulation._csv_requests_index = csv_idx
+    
+    # Then, generate stochastic requests via the generator
     new_reqs = simulation.request_generator.maybe_generate(simulation.time)
     if new_reqs:
         simulation.requests.extend(new_reqs)

@@ -121,7 +121,7 @@ class TestInitState(unittest.TestCase):
         self.assertGreater(len(sim.drivers), 0)
 
     def test_init_state_with_requests(self):
-        """init_state includes pre-loaded requests."""
+        """init_state stores pre-loaded requests for time-based injection."""
         requests_data = [
             {'id': 1, 'creation_time': 0, 'px': 5.0, 'py': 5.0, 'dx': 15.0, 'dy': 15.0},
         ]
@@ -129,7 +129,10 @@ class TestInitState(unittest.TestCase):
                   timeout=1000, req_rate=1.0, width=50, height=50)
         
         sim = get_simulation()
-        self.assertGreater(len(sim.requests), 0)
+        # Pre-loaded requests are stored but not immediately added
+        # Request with creation_time=0 should be added on first tick
+        self.assertTrue(hasattr(sim, '_all_csv_requests'))
+        self.assertGreater(len(sim._all_csv_requests), 0)
 
 
 class TestSimulateStep(unittest.TestCase):
@@ -346,7 +349,7 @@ class TestAdapterIntegration(unittest.TestCase):
             self.assertGreaterEqual(state['t'], i)
 
     def test_adapter_with_initial_requests(self):
-        """Test adapter with initial requests."""
+        """Test adapter with pre-loaded requests arriving at their creation_time."""
         drivers_data = [{'id': 1, 'x': 10.0, 'y': 20.0}]
         requests_data = [
             {
@@ -362,8 +365,13 @@ class TestAdapterIntegration(unittest.TestCase):
         state = init_state(drivers_data, requests_data,
                           timeout=1000, req_rate=1.0, width=50, height=50)
         
-        # State uses 'pending' for requests, not 'requests'
+        # At time 0, request with creation_time=0 hasn't been added yet
+        # It will be added on the first tick
         self.assertIn('pending', state)
+        self.assertEqual(len(state.get('pending', [])), 0)
+        
+        # After one step, request should arrive (creation_time=0 <= t=1)
+        state, _ = simulate_step(state)
         self.assertGreater(len(state.get('pending', [])), 0)
 
 
