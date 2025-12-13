@@ -92,12 +92,35 @@ from ..request import Request, WAITING, ASSIGNED, PICKED, EXPIRED
 from ..offer import Offer
 from ..point import Point
 from ..driver import Driver
-from ..behaviours import LazyBehaviour
+from ..behaviours import LazyBehaviour, GreedyDistanceBehaviour, EarningsMaxBehaviour
+import random
 
 
 # ====================================================================
 # DICT <-> OBJECT CONVERSION HELPERS (for adapter)
 # ====================================================================
+
+def _assign_random_behaviour() -> "DriverBehaviour":
+    """Randomly assign one of three driver behaviours.
+    
+    Returns:
+        DriverBehaviour: One of GreedyDistanceBehaviour, EarningsMaxBehaviour, or LazyBehaviour
+        chosen with equal probability (1/3 each).
+        
+    Example:
+        >>> behaviour = _assign_random_behaviour()
+        >>> type(behaviour).__name__ in ["GreedyDistanceBehaviour", "EarningsMaxBehaviour", "LazyBehaviour"]
+        True
+    """
+    choice = random.choice(["greedy", "earnings", "lazy"])
+    
+    if choice == "greedy":
+        return GreedyDistanceBehaviour(max_distance=10.0)
+    elif choice == "earnings":
+        return EarningsMaxBehaviour(min_reward_per_time=0.8)
+    else:  # choice == "lazy"
+        return LazyBehaviour(idle_ticks_needed=5)
+
 
 def create_driver_from_dict(d_dict: dict, idx: int = 0) -> "Driver":
     """Convert a driver dict to a Driver object. O(1).
@@ -107,13 +130,13 @@ def create_driver_from_dict(d_dict: dict, idx: int = 0) -> "Driver":
         idx: Fallback id if 'id' not in dict.
     
     Returns:
-        Driver object with LazyBehaviour.
+        Driver object with randomly assigned behaviour.
     """
     return Driver(
         id=d_dict.get("id", idx),
         position=Point(d_dict["x"], d_dict["y"]),
         speed=d_dict.get("speed", 1.5),
-        behaviour=LazyBehaviour(idle_ticks_needed=3),
+        behaviour=_assign_random_behaviour(),
     )
 
 
