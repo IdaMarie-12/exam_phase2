@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Delivery Simulation - Phase 2 Report</title>
+    <style>
+        body {
+            font-family: 'Calibri', 'Arial', sans-serif;
+            line-height: 1.8;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            color: #333;
+            background-color: white;
+        }
+        h1 {
+            font-size: 28px;
+            color: #1a1a1a;
+            text-align: center;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        h2 {
+            font-size: 18px;
+            color: #1a1a1a;
+            margin-top: 35px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 8px;
+        }
+        h3 {
+            font-size: 15px;
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        h4 {
+            font-size: 13px;
+            color: #444;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        p {
+            margin: 12px 0;
+            text-align: justify;
+            font-size: 12px;
+        }
+        ul, ol {
+            margin: 10px 0;
+            padding-left: 30px;
+            font-size: 12px;
+        }
+        li {
+            margin: 6px 0;
+        }
+        .toc {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 3px;
+            margin: 20px 0;
+            font-size: 12px;
+        }
+        .toc ol {
+            margin: 0;
+        }
+        .highlight-box {
+            background-color: #f0f7ff;
+            padding: 15px;
+            border-left: 4px solid #1a73e8;
+            margin: 15px 0;
+            font-size: 12px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 12px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+        .divider {
+            border-top: 1px solid #ddd;
+            margin: 30px 0;
+        }
+        code {
+            background-color: #f9f9f9;
+            padding: 2px 4px;
+            border-radius: 2px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #d73a49;
+        }
+        pre {
+            background-color: #f9f9f9;
+            padding: 12px;
+            border-left: 3px solid #ddd;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.4;
+            margin: 12px 0;
+        }
+        .key-points {
+            background-color: #fffacd;
+            padding: 15px;
+            border-radius: 3px;
+            margin: 15px 0;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Food Delivery Simulation - Phase 2</h1>
+<p class="subtitle">Object-Oriented Design & Professional Testing</p>
+<p class="subtitle">DS830 - Introduction to Programming | December 2025</p>
+
+<div class="divider"></div>
+
+<h2>TABLE OF CONTENTS</h2>
+<div class="toc">
+    <ol>
+        <li>Introduction</li>
+        <li>System Architecture</li>
+        <li>Core Design and Implementation</li>
+        <li>Testing and Quality Assurance</li>
+        <li>Performance Monitoring</li>
+        <li>Conclusion</li>
+        <li>Appendix: Source Code</li>
+    </ol>
+</div>
+
+<div class="divider"></div>
+
+<h2>1. INTRODUCTION</h2>
+
+<p>Phase 2 of the Food Delivery Simulation project represents a significant evolution from the procedural implementation of Phase 1. This phase introduces object-oriented design principles to create a system that is more maintainable, testable, and extensible.</p>
+
+<p>While Phase 1 focused on functional decomposition using simple Python dictionaries and procedural logic, Phase 2 refactors the system into well-defined classes that encapsulate specific domains and responsibilities. Each class represents a meaningful concept in the delivery simulation domain: geometric points, customer requests, driver offers, individual drivers, decision strategies, and the overall simulation orchestration.</p>
+
+<p>A cornerstone achievement of Phase 2 is the introduction of comprehensive unit testing. With 127 tests covering all major components using Python's unittest framework and strategic mocking techniques, the codebase now demonstrates professional software engineering standards. These tests validate not only individual component functionality but also the complex interactions between components.</p>
+
+<p>This report documents the architectural decisions, design patterns, implementation strategies, and testing methodology that enable Phase 2 to serve as a robust, production-ready system.</p>
+
+<div class="divider"></div>
+
+<h2>2. SYSTEM ARCHITECTURE</h2>
+
+<h3>2.1 Architectural Overview</h3>
+
+<p>The Phase 2 system employs a layered architecture that clearly separates concerns and facilitates testing. The architecture consists of six distinct layers, each with specific responsibilities:</p>
+
+<h4>Model Layer</h4>
+<p>The foundation of the system consists of pure data models that represent core domain concepts: <code>Point</code> (2D coordinates), <code>Request</code> (delivery orders), and <code>Offer</code> (driver proposals). These models contain no simulation logic and no dependencies on other system components, making them ideal for standalone unit testing.</p>
+
+<h4>Strategy Layer</h4>
+<p>Driver behavior is encapsulated in strategy classes within the <code>behaviours</code> module. This layer implements three distinct decision-making approaches: <code>GreedyDistance</code> (minimize travel), <code>EarningsMax</code> (maximize income), and <code>LazyPolicy</code> (probabilistic acceptance). The Strategy pattern allows new decision logics to be added without modifying existing code.</p>
+
+<h4>Actor Layer</h4>
+<p>The <code>Driver</code> class represents individual actors in the simulation. Each driver maintains state (position, earnings, active request), applies a behavior strategy, and participates in the delivery workflow. Drivers interact with helper functions for movement, metric calculation, and history recording.</p>
+
+<h4>Orchestration Layer</h4>
+<p>The <code>DeliverySimulation</code> class serves as the central coordinator, managing all system state and driving the 9-phase simulation tick cycle. This layer handles request lifecycle management, driver-request matching, conflict resolution, and maintains consistency across the entire system.</p>
+
+<h4>Helper Layer</h4>
+<p>Three helper modules provide utility functions: <code>core_helpers</code> for basic geometry and state transitions, <code>engine_helpers</code> for complex orchestration logic, and <code>metrics_helpers</code> for time-series data collection. This separation allows helpers to be tested independently and reused across different simulation contexts.</p>
+
+<h4>Integration Layer</h4>
+<p>The <code>adapter</code> module bridges Phase 1 and Phase 2 systems, providing backward compatibility and enabling data conversion between dictionary-based and object-based representations. The GUI communicates with the simulation through this adapter.</p>
+
+<h3>2.2 Component Interaction</h3>
+
+<p>The system exhibits a clear flow from user interface through integration layers to core simulation logic:</p>
+
+<ul>
+<li>User Interface triggers simulation steps through the Adapter</li>
+<li>Adapter delegates to DeliverySimulation for orchestration</li>
+<li>DeliverySimulation coordinates Drivers, Requests, and helper functions</li>
+<li>Drivers apply Behavior strategies to make decisions</li>
+<li>All state changes are recorded in metrics for post-simulation analysis</li>
+</ul>
+
+<div class="highlight-box">
+<strong>Key Design Principle:</strong> Each layer has a single, well-defined responsibility. Dependencies flow downward from orchestration to models, and testing can be performed at each layer independently through strategic mocking.
+</div>
+
+<div class="divider"></div>
+
+<h2>3. CORE DESIGN AND IMPLEMENTATION</h2>
+
+<h3>3.1 Domain Models</h3>
+
+<p>The three core domain models represent the fundamental concepts of the delivery simulation:</p>
+
+<h4>Point Class</h4>
+<p>The <code>Point</code> class encapsulates 2D coordinate geometry. Unlike Phase 1 which used raw tuples, Point provides a clean interface for spatial operations including distance calculations, vector arithmetic, and coordinate comparisons. The class is immutable in behavior—operations return new instances rather than modifying state—reducing hidden coupling and making the system safer for concurrent usage.</p>
+
+<p><strong>Key Capabilities:</strong></p>
+<ul>
+<li>Distance calculation using Euclidean geometry</li>
+<li>Vector operations (addition, subtraction, scalar multiplication)</li>
+<li>Proper equality comparison and hashing for use in collections</li>
+<li>String representation for debugging</li>
+</ul>
+
+<h4>Request Class</h4>
+<p>The <code>Request</code> class models customer delivery requests with a well-defined lifecycle. A request progresses through states: waiting → assigned → picked → delivered. The class tracks all relevant information: pickup/dropoff locations, appearance time, waiting duration, and assigned driver.</p>
+
+<p>The class includes automatic expiration checking: if a request exceeds the timeout threshold, it expires and is removed from the system. This models real-world delivery constraints where customers cancel if service takes too long.</p>
+
+<h4>Offer Class</h4>
+<p>The <code>Offer</code> class represents a proposal from a driver to service a request. An offer contains all information needed for decision-making: which driver and request are involved, the travel distance, estimated earnings, and reward points. Offers enable decoupling of the decision-making logic from request-driver matching.</p>
+
+<h3>3.2 Behavior Strategies</h3>
+
+<p>The system implements three distinct driver behavior strategies, allowing for flexible comparison of different dispatch approaches:</p>
+
+<h4>GreedyDistance Strategy</h4>
+<p>Drivers using this strategy always select the nearest available request. This approach minimizes travel distance and is typically optimal for fuel efficiency and rapid request completion. The strategy is deterministic—given the same set of offers, it will always make the same choice.</p>
+
+<h4>EarningsMax Strategy</h4>
+<p>Drivers using this strategy prioritize financial return, always selecting the highest-paying available request. This strategy is useful for understanding driver behavior when incentivized by earnings and can represent scenarios where gig workers optimize for income.</p>
+
+<h4>LazyPolicy Strategy</h4>
+<p>This strategy models probabilistic acceptance, where drivers accept requests based on a configurable threshold. This approach represents real-world driver behavior where acceptance depends on various factors beyond pure metrics. The probabilistic nature allows researchers to model driver heterogeneity and study the effects of varying effort levels on system performance.</p>
+
+<div class="key-points">
+<strong>Why Multiple Strategies?</strong> Different strategies model different driver populations and objectives. Testing all three strategies helps identify which approach best serves the system's goals under various load conditions.
+</div>
+
+<h3>3.3 Simulation Orchestration</h3>
+
+<p>The <code>DeliverySimulation</code> class implements a carefully designed 9-phase tick cycle that executes one minute of simulation time per call:</p>
+
+<ol>
+<li><strong>Time Advancement:</strong> Increment simulation clock</li>
+<li><strong>Request Activation:</strong> Bring due requests from future queue to pending</li>
+<li><strong>Request Generation:</strong> Create new requests based on configured rate</li>
+<li><strong>Expiration Handling:</strong> Identify and remove timed-out requests</li>
+<li><strong>Driver Assignment:</strong> Match idle drivers to waiting requests</li>
+<li><strong>Offer Collection:</strong> Generate proposals from assigned drivers</li>
+<li><strong>Conflict Resolution:</strong> Handle requests with multiple driver proposals</li>
+<li><strong>Driver Movement:</strong> Move drivers toward their targets</li>
+<li><strong>Behavior Mutation:</strong> Optionally change driver strategies</li>
+</ol>
+
+<p>This carefully ordered sequence ensures that all state transitions are logically consistent: drivers are not assigned twice, requests are not delivered without pickup, and metrics accurately reflect system state at each timestep.</p>
+
+<h3>3.4 Helper Functions</h3>
+
+<p>Three helper modules provide functionality that supports the orchestration layer:</p>
+
+<p><code>core_helpers</code> provides low-level utilities for movement (checking arrival, calculating direction vectors), metrics (calculating rewards), and history recording. These functions are pure computational operations with no side effects on simulation state.</p>
+
+<p><code>engine_helpers</code> implements the complex orchestration logic needed by the simulator: generating requests stochastically, identifying expired requests, building proposal matrices, and resolving conflicts. This module contains the core decision algorithms.</p>
+
+<p><code>metrics_helpers</code> collects and maintains time-series data. The <code>SimulationTimeSeries</code> class records key performance indicators at each simulation step, enabling post-run analysis and visualization of system behavior.</p>
+
+<div class="divider"></div>
+
+<h2>4. TESTING AND QUALITY ASSURANCE</h2>
+
+<h3>4.1 Testing Philosophy</h3>
+
+<p>Phase 2 implements comprehensive testing using Python's built-in <code>unittest</code> framework combined with strategic use of mocks. The testing approach follows the principle of testing in layers: core models are tested with simple assertions, components with external dependencies are tested with mocks, and orchestration is tested with heavy mocking to isolate behavior.</p>
+
+<h3>4.2 Test Organization</h3>
+
+<p>The test suite consists of 127 tests organized into three main test modules, each focusing on a specific layer:</p>
+
+<h4>test_point.py (48 tests)</h4>
+<p>Tests for the <code>Point</code> class require no mocking because all operations are pure mathematics with no external dependencies. Tests cover initialization, distance calculations, arithmetic operations, boundary conditions (negative coordinates, zero values), and integration scenarios where multiple operations compose. All tests are deterministic and execute in milliseconds.</p>
+
+<h4>test_behaviours.py (41 tests)</h4>
+<p>Tests for the behavior strategies use <code>Mock</code> objects to simulate offers and requests. By using mock objects, tests can verify decision logic without needing fully implemented Request and Offer classes. The <code>LazyPolicy</code> strategy uses random selection, so its tests include <code>@patch</code> decorators to make randomness deterministic. This layer of testing validates that each strategy makes logically correct decisions.</p>
+
+<h4>test_simulation.py (38 tests)</h4>
+<p>Tests for the orchestration layer use heavy mocking to isolate the simulation's logic from helper function implementations. Each helper function is mocked to return controlled values, allowing tests to verify that the simulator correctly orchestrates the 9-phase cycle and maintains state consistency. Tests verify call ordering, side effects, and the correctness of state transitions.</p>
+
+<h3>4.3 Mocking Strategy</h3>
+
+<p>The test suite strategically applies mocking to balance test isolation with practical coverage:</p>
+
+<p><strong>Mock When:</strong> Testing orchestration logic (isolate from implementation details of helper functions), testing strategies (avoid coupling to Request/Offer initialization), or controlling randomness (make tests deterministic).</p>
+
+<p><strong>Don't Mock When:</strong> Testing pure mathematics (Point operations), testing simple data containers, or testing core decision logic that should be verified with real objects.</p>
+
+<h3>4.4 Test Execution</h3>
+
+<p>All tests can be executed in multiple ways for flexibility:</p>
+
+<pre>python -m unittest discover -s test -p "test_*.py"    # All 127 tests
+python test/test_point.py                              # 48 tests
+python test/test_behaviours.py                         # 41 tests
+python test/test_simulation.py                         # 38 tests</pre>
+
+<p>Each test file includes <code>sys.path</code> manipulation to ensure the <code>phase2</code> module can be imported whether tests are run directly or via unittest discovery.</p>
+
+<div class="key-points">
+<strong>Test Results:</strong> All 127 tests pass successfully, executing in approximately 0.02 seconds total. The comprehensive test suite demonstrates that all components function correctly both in isolation and as integrated parts of the larger system.
+</div>
+
+<div class="divider"></div>
+
+<h2>5. PERFORMANCE MONITORING</h2>
+
+<h3>5.1 Metrics Collection</h3>
+
+<p>The simulation continuously tracks key performance indicators throughout execution. At each simulation step, the system records:</p>
+
+<ul>
+<li><strong>Served Requests:</strong> Cumulative count of successfully completed deliveries</li>
+<li><strong>Expired Requests:</strong> Cumulative count of requests that timed out</li>
+<li><strong>Average Wait Time:</strong> Mean time from request appearance to delivery completion</li>
+<li><strong>Pending Requests:</strong> Current queue size at each timestep</li>
+<li><strong>Driver Utilization:</strong> Percentage of drivers actively serving requests</li>
+</ul>
+
+<p>This time-series data is collected by the <code>SimulationTimeSeries</code> class and made available after simulation completion for analysis and visualization.</p>
+
+<h3>5.2 Final Summary Statistics</h3>
+
+<p>At simulation completion, the system computes summary statistics including total simulation time, final served and expired counts, service level percentage (served / total), and overall average wait time. These metrics enable comparison of different configurations and strategies.</p>
+
+<h3>5.3 Visualization and Analysis</h3>
+
+<p>The GUI's report window consumes the collected metrics and produces time-series visualizations showing how key indicators evolved during the simulation. This enables researchers to identify bottlenecks, understand system dynamics, and optimize dispatch strategies.</p>
+
+<div class="divider"></div>
+
+<h2>6. CONCLUSION</h2>
+
+<p>Phase 2 successfully demonstrates how object-oriented design principles improve software quality and testability. The system exhibits clear separation of concerns, with each component having a single, well-defined responsibility. The layered architecture enables testing at multiple levels of abstraction.</p>
+
+<p>The comprehensive test suite with 127 passing tests provides high confidence in system correctness. By combining unit tests (no mocking), integration tests (with strategic mocking), and heavy orchestration tests, the team has validated both individual components and their interactions.</p>
+
+<h4>Key Achievements</h4>
+<ul>
+<li>Refactored Phase 1's procedural code into clean object-oriented design</li>
+<li>Implemented 127 comprehensive unit tests with 100% pass rate</li>
+<li>Applied professional mocking strategies to isolate component testing</li>
+<li>Maintained clear separation of concerns across six architectural layers</li>
+<li>Implemented three distinct behavior strategies for flexible comparison</li>
+<li>Created robust time-series metrics collection for post-simulation analysis</li>
+<li>Documented all architectural decisions and testing methodology</li>
+</ul>
+
+<p>The Phase 2 system is production-ready and serves as an excellent foundation for further research into dispatch optimization, machine learning integration, or real-world deployment scenarios.</p>
+
+<div class="divider"></div>
+
+<h2>7. APPENDIX: SOURCE CODE OVERVIEW</h2>
+
+<h3>7.1 Test Coverage Summary</h3>
+
+<table>
+    <tr>
+        <th>Component</th>
+        <th>Tests</th>
+        <th>Test Type</th>
+        <th>Status</th>
+    </tr>
+    <tr>
+        <td>Point (Geometry)</td>
+        <td>48</td>
+        <td>Unit - No Mocking</td>
+        <td>✓ Passing</td>
+    </tr>
+    <tr>
+        <td>Behaviors (Strategies)</td>
+        <td>41</td>
+        <td>Unit - Mock Objects</td>
+        <td>✓ Passing</td>
+    </tr>
+    <tr>
+        <td>Simulation (Orchestration)</td>
+        <td>38</td>
+        <td>Unit - Heavy Mocking</td>
+        <td>✓ Passing</td>
+    </tr>
+    <tr style="font-weight: bold;">
+        <td>TOTAL</td>
+        <td>127</td>
+        <td>Mixed Strategies</td>
+        <td>✓ ALL PASS</td>
+    </tr>
+</table>
+
+<h3>7.2 Class Structure Summary</h3>
+
+<table>
+    <tr>
+        <th>Class</th>
+        <th>Module</th>
+        <th>Responsibility</th>
+    </tr>
+    <tr>
+        <td><code>Point</code></td>
+        <td>phase2/point.py</td>
+        <td>2D coordinate geometry and vector operations</td>
+    </tr>
+    <tr>
+        <td><code>Request</code></td>
+        <td>phase2/request.py</td>
+        <td>Delivery request lifecycle and expiration</td>
+    </tr>
+    <tr>
+        <td><code>Offer</code></td>
+        <td>phase2/offer.py</td>
+        <td>Driver-request proposal with metrics</td>
+    </tr>
+    <tr>
+        <td><code>Driver</code></td>
+        <td>phase2/driver.py</td>
+        <td>Individual actor state and behavior strategy</td>
+    </tr>
+    <tr>
+        <td><code>GreedyDistance</code></td>
+        <td>phase2/behaviours.py</td>
+        <td>Minimize-distance decision strategy</td>
+    </tr>
+    <tr>
+        <td><code>EarningsMax</code></td>
+        <td>phase2/behaviours.py</td>
+        <td>Maximize-earnings decision strategy</td>
+    </tr>
+    <tr>
+        <td><code>LazyPolicy</code></td>
+        <td>phase2/behaviours.py</td>
+        <td>Probabilistic acceptance strategy</td>
+    </tr>
+    <tr>
+        <td><code>DeliverySimulation</code></td>
+        <td>phase2/simulation.py</td>
+        <td>9-phase orchestration and state management</td>
+    </tr>
+    <tr>
+        <td><code>SimulationTimeSeries</code></td>
+        <td>phase2/helpers_2/metrics_helpers.py</td>
+        <td>Time-series metrics collection</td>
+    </tr>
+</table>
+
+<h3>7.3 Module Dependencies</h3>
+
+<p><strong>phase2/point.py</strong> - No internal dependencies (pure math)</p>
+<p><strong>phase2/request.py</strong> - Depends on Point</p>
+<p><strong>phase2/offer.py</strong> - No internal dependencies</p>
+<p><strong>phase2/driver.py</strong> - Depends on Point, Request, Offer, core_helpers</p>
+<p><strong>phase2/behaviours.py</strong> - Depends on Offer</p>
+<p><strong>phase2/simulation.py</strong> - Depends on all above + engine_helpers, metrics_helpers</p>
+<p><strong>phase2/adapter.py</strong> - Bridges Phase 1 and Phase 2</p>
+
+<h3>7.4 Testing Pattern Overview</h3>
+
+<p><strong>Unit Testing Pattern:</strong> Simple assertions on mathematical operations without mocks</p>
+<p><strong>Mock-Based Testing Pattern:</strong> Using Mock objects to simulate dependencies while testing decision logic</p>
+<p><strong>Patch-Based Testing Pattern:</strong> Using @patch decorators to replace helper functions and test orchestration</p>
+
+<div class="divider"></div>
+
+<p><strong>Report Completed:</strong> December 13, 2025</p>
+<p><strong>Course:</strong> DS830 - Introduction to Programming</p>
+<p><strong>Institution:</strong> SDU</p>
+
+</body>
+</html>
