@@ -107,8 +107,10 @@ class TestGenerateReportMatplotlibCheck(unittest.TestCase):
         self.assertIn("matplotlib", str(context.exception))
 
     @patch('phase2.report_window.HAS_MATPLOTLIB', True)
+    @patch('phase2.report_window._show_mutation_window')
+    @patch('phase2.report_window._show_behaviour_window')
     @patch('phase2.report_window.plt')
-    def test_generate_report_with_matplotlib_creates_figure(self, mock_plt):
+    def test_generate_report_with_matplotlib_creates_figure(self, mock_plt, mock_behaviour, mock_mutation):
         """generate_report creates figure when matplotlib available."""
         mock_fig = MagicMock()
         mock_plt.figure.return_value = mock_fig
@@ -117,6 +119,9 @@ class TestGenerateReportMatplotlibCheck(unittest.TestCase):
         self.simulation.expired_count = 5
         self.simulation.time = 100
         self.simulation.avg_wait = 15.0
+        self.simulation.mutation = Mock()
+        self.simulation.mutation.mutation_history = []
+        self.simulation.mutation.mutation_transitions = {}
         
         generate_report(self.simulation, time_series=None)
         
@@ -334,6 +339,12 @@ class TestMutationWindow(unittest.TestCase):
     def setUp(self):
         """Create mock simulation with mutation rule."""
         self.simulation = Mock(spec=DeliverySimulation)
+        self.simulation.drivers = [Mock() for _ in range(3)]
+        self.simulation.requests = [Mock() for _ in range(100)]
+        self.simulation.served_count = 80
+        self.simulation.expired_count = 20
+        self.simulation.time = 500
+        self.simulation.avg_wait = 20.0
         self.simulation.mutation = Mock()
         self.simulation.mutation.mutation_history = [
             {
@@ -366,6 +377,14 @@ class TestMutationWindow(unittest.TestCase):
         
         mock_fig = MagicMock()
         mock_plt.figure.return_value = mock_fig
+        
+        # Mock the drivers properly to avoid comparison issues
+        mock_driver1 = Mock()
+        mock_driver1._last_mutation_time = 10
+        mock_driver2 = Mock()
+        mock_driver2._last_mutation_time = 50
+        
+        self.simulation.drivers = [mock_driver1, mock_driver2]
         
         _show_mutation_window(self.simulation)
         
