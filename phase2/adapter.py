@@ -64,7 +64,7 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
     policy = GlobalGreedyPolicy()
     
     # Create mutation rule (allows drivers to change behaviour based on performance)
-    mutation_rule = HybridMutation(window=5, low_threshold=3.0, high_threshold=10.0)
+    mutation_rule = HybridMutation(low_threshold=3.0, high_threshold=10.0)
     
     # Create request generator
     # If CSV requests provided → don't generate new ones (rate=0)

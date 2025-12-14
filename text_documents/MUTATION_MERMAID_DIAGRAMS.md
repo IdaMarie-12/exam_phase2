@@ -1,53 +1,378 @@
-# Mutation Class Diagram (Mermaid)
+# Mutation System Mermaid Diagrams (Updated)
 
-## Full Class Hierarchy
+Based on the current mutation.py implementation with:
+- Fixed 10-tick evaluation window
+- Aligned thresholds and cooldown
+- Exploration that excludes current behaviour
+- Hysteresis-based exit conditions
+
+## 1. Complete Decision Flow (maybe_mutate)
 
 ```mermaid
-classDiagram
-    class MutationRule {
-        maybe_mutate(driver Driver, time int) void
-    }
+graph TD
+    A["TICK N<br/>maybe_mutate called"] -->|Entry| B["Check Cooldown<br/>time - last_mutation >= 10?"]
+    B -->|In Cooldown| C["RETURN<br/>Skip mutation"]
+    B -->|Can Mutate| D["Calculate avg fare<br/>last 10 trips"]
+    D -->|No History| E["RETURN<br/>Insufficient data"]
+    D -->|Has Data| F["Get current behaviour name"]
+    F --> G["Check EXIT Condition<br/>should_exit_behaviour?"]
+    G -->|YES - Exit| H["Reset to LazyBehaviour"]
+    H --> I["Record exit mutation<br/>Set cooldown<br/>RETURN"]
+    G -->|NO - Continue| J["PRIMARY: Performance Check"]
+    J -->|avg < 3.0| K["Switch to<br/>GreedyDistanceBehaviour"]
+    J -->|avg > 10.0| L["Switch to<br/>EarningsMaxBehaviour"]
+    J -->|3.0 ≤ avg ≤ 10.0| M["Check SECONDARY:<br/>Stagnation?"]
+    K --> N["Record performance mutation<br/>Set cooldown<br/>RETURN"]
+    L --> N
+    M -->|Not Stagnating| O["RETURN<br/>No change"]
+    M -->|Stagnating| P{Which behaviour?}
+    P -->|Lazy| Q["FORCE EXPLORE<br/>100% must change"]
+    P -->|Greedy/<br/>Earnings| R["Check: random < 0.3?"]
+    R -->|NO 70%| O
+    R -->|YES 30%| Q
+    Q --> S["Pick from<br/>2 alternatives"]
+    S --> T["Switch to<br/>picked behaviour"]
+    T --> N
 
-    class HybridMutation {
-        last_mutation_time dict
-        maybe_mutate(driver Driver, time int) void
-        should_mutate() bool
-        get_average_earnings() float
-        detect_stagnation() bool
-    }
+    style A fill:#e1f5ff
+    style C fill:#ffcdd2
+    style E fill:#ffcdd2
+    style I fill:#c8e6c9
+    style N fill:#c8e6c9
+    style O fill:#f0f0f0
+    style K fill:#ef5350
+    style L fill:#42a5f5
+    style Q fill:#ef5350
+    style T fill:#bbdefb
+```
 
-    class DriverBehaviour {
-        decide(driver Driver, offer Offer, time int) bool
-    }
+## 2. Earnings Zones (5 Decision Zones)
 
-    class GreedyDistanceBehaviour {
-        max_distance float
-        decide() bool
-    }
+```mermaid
+graph LR
+    A["0"] --> B["3.0"]
+    B --> C["5.0"]
+    C --> D["7.5"]
+    D --> E["10.0"]
+    E --> F["∞"]
+    
+    A -->|Zone 1<br/>STRUGGLING<br/>avg < 3.0| B
+    B -->|Zone 2<br/>RECOVERY<br/>3.0-5.0| C
+    C -->|Zone 3<br/>NORMAL<br/>5.0-7.5| D
+    D -->|Zone 4<br/>GOOD<br/>7.5-10.0| E
+    E -->|Zone 5<br/>THRIVING<br/>avg > 10.0| F
+    
+    K1["Entry: Greedy<br/>avg < 3.0"] -.->|Switch to Greedy| B
+    K2["Exit: Greedy<br/>avg >= 5.0"] -.->|Reset to Lazy| C
+    K3["Entry: EarningsMax<br/>avg > 10.0"] -.->|Switch to EarningsMax| E
+    K4["Exit: EarningsMax<br/>avg < 7.5"] -.->|Reset to Lazy| D
+    
+    style B fill:#ffb74d
+    style C fill:#fff9c4
+    style D fill:#fff9c4
+    style E fill:#81c784
+    style F fill:#66bb6a
+    style K1 fill:#ffb74d
+    style K2 fill:#fff9c4
+    style K3 fill:#81c784
+    style K4 fill:#fff9c4
+```
 
-    class EarningsMaxBehaviour {
-        threshold float
-        decide() bool
-    }
+## 3. Stagnation Detection (Variance Algorithm)
 
-    class LazyBehaviour {
-        idle_ticks_needed int
-        decide() bool
-    }
+```mermaid
+graph TD
+    A["Get last 10 trips<br/>_is_stagnating()"] --> B["Extract fares<br/>e.g., [5.0, 5.1, 4.9, 5.2, ...]"]
+    B --> C["Calculate average<br/>avg_fare = sum / len"]
+    C --> D["Calculate tolerance<br/>tolerance = avg * 0.05"]
+    D --> E["Create band<br/>[avg - tol, avg + tol]<br/>e.g., [4.821, 5.329]"]
+    E --> F["For each fare:<br/>abs(fare - avg) <= tolerance?"]
+    F --> G["Count within band<br/>e.g., 8/8 trips"]
+    G --> H["Calculate percentage<br/>8/8 = 100%"]
+    H --> I{percentage >= 70%?}
+    I -->|YES| J["STAGNATING<br/>Return True"]
+    I -->|NO| K["HEALTHY<br/>Return False"]
+    
+    style J fill:#ef5350
+    style K fill:#66bb6a
+    
+    L["Example Stagnating:<br/>fares=[5.0,5.1,4.9,5.2,...]<br/>avg=5.075, tol=0.254<br/>All within band → 100% >= 70%"] -.->|confirms| J
+    M["Example Healthy:<br/>fares=[2.5,8.3,3.8,9.2,...]<br/>avg=5.0, tol=0.25<br/>None within band → 0% < 70%"] -.->|confirms| K
+    
+    style L fill:#fff9c4
+    style M fill:#fff9c4
+```
 
-    class Driver {
-        id int
-        position Point
-        behaviour DriverBehaviour
-        history list
-        earnings float
-        idle_since int
-    }
+## 4. Exploration Mechanism (30% Rule with Lazy Forcing)
 
-    MutationRule <|-- HybridMutation
-    DriverBehaviour <|-- GreedyDistanceBehaviour
-    DriverBehaviour <|-- EarningsMaxBehaviour
-    DriverBehaviour <|-- LazyBehaviour
+```mermaid
+graph TD
+    A["Stagnation Detected<br/>avg in 3.0-10.0 range"] --> B["Get current behaviour<br/>e.g., GreedyDistanceBehaviour"]
+    B --> C["Extract shorthand<br/>lazy, greedy, or earnings"]
+    C --> D{Which behaviour?}
+    
+    D -->|lazy| E["FORCE EXPLORE<br/>100% must change"]
+    D -->|greedy or earnings| F["Generate random: [0, 1)"]
+    F --> G["Compare to 0.3"]
+    G -->|>= 0.3<br/>70%| H["STAY<br/>No exploration"]
+    G -->|< 0.3<br/>30%| E
+    
+    E --> I["Available behaviours<br/>[greedy, earnings, lazy]"]
+    I --> J["Filter out current<br/>2 items remain"]
+    J --> K["Random choice from 2"]
+    K --> L["Switch to<br/>picked behaviour"]
+    L --> M["Record exploration<br/>Set cooldown"]
+    H --> N["No change<br/>Keep current"]
+    
+    style E fill:#ef5350
+    style H fill:#fff9c4
+    style L fill:#bbdefb
+    style M fill:#c8e6c9
+    style N fill:#f0f0f0
+    
+    O["Key Insight:<br/>Lazy drivers always escape stagnation<br/>Active drivers only explore 30%"] -.-> E
+    style O fill:#fff9c4
+```
+
+## 5. Exit Conditions (Hysteresis)
+
+```mermaid
+graph TD
+    A["Check EXIT Condition<br/>should_exit_behaviour?"] --> B["Get current behaviour"]
+    B --> C{Which behaviour?}
+    
+    C -->|GreedyDistanceBehaviour| D["Check: avg >= 5.0?"]
+    D -->|YES - Recovered| E["EXIT to LazyBehaviour<br/>Earnings improved 1.67x"]
+    D -->|NO - Still struggling| F["STAY in Greedy"]
+    
+    C -->|EarningsMaxBehaviour| G["Check: avg < 7.5?"]
+    G -->|YES - Deteriorated| H["EXIT to LazyBehaviour<br/>Earnings dropped 25%"]
+    G -->|NO - Still good| I["STAY in EarningsMax"]
+    
+    C -->|LazyBehaviour| J["NO EXIT<br/>Neutral behaviour"]
+    
+    E --> K["Record exit_greedy<br/>Set cooldown"]
+    H --> L["Record exit_earnings<br/>Set cooldown"]
+    J --> M["Return False"]
+    F --> M
+    I --> M
+    
+    style E fill:#ef5350
+    style H fill:#ef5350
+    style K fill:#c8e6c9
+    style L fill:#c8e6c9
+    style J fill:#66bb6a
+```
+
+## 6. State Transition Graph
+
+```mermaid
+stateDiagram-v2
+    [*] --> Lazy: Initial assignment
+    
+    Lazy --> Greedy: avg < 3.0<br/>performance
+    Lazy --> EarningsMax: avg > 10.0<br/>performance
+    Lazy --> Greedy: stagnating<br/>100% explore
+    Lazy --> EarningsMax: stagnating<br/>100% explore
+    
+    Greedy --> Lazy: avg >= 5.0<br/>exit
+    Greedy --> Greedy: avg < 5.0
+    Greedy --> Greedy: stagnating + 70%<br/>stay
+    Greedy --> EarningsMax: stagnating + 30%<br/>explore
+    Greedy --> Lazy: stagnating + 30%<br/>explore
+    
+    EarningsMax --> Lazy: avg < 7.5<br/>exit
+    EarningsMax --> EarningsMax: avg >= 7.5
+    EarningsMax --> EarningsMax: stagnating + 70%<br/>stay
+    EarningsMax --> Greedy: stagnating + 30%<br/>explore
+    EarningsMax --> Lazy: stagnating + 30%<br/>explore
+    
+    style Lazy fill:#fff9c4
+    style Greedy fill:#ef5350
+    style EarningsMax fill:#42a5f5
+```
+
+## 7. Cooldown and Evaluation Windows (Timeline)
+
+```mermaid
+timeline
+    title Mutation Cycle: 10-Tick Windows
+
+    section Driver 1
+        Ticks 0-10 : Initial Behaviour : Collecting history
+        Tick 10 : Evaluation & Mutation : avg=2.8 < 3.0 → Greedy
+        Ticks 11-20 : Greedy Cooldown : Executing Greedy strategy
+        Ticks 11-20 : New History : 10 trips collected
+        Tick 20 : Next Evaluation : Decide based on new avg
+        
+    section Cooldown Rules
+        Mutation Time : tick 10 : _last_mutation_time = 10
+        Cooldown Period : ticks 11-19 : (time - 10) < 10
+        Cooldown Ends : tick 20 : (20 - 10) = 10 >= 10 ✓
+        Next Mutation Allowed : tick 20+
+```
+
+## 8. HybridMutation Initialization
+
+```mermaid
+graph TD
+    A["HybridMutation()"] --> B["Parameters<br/>Only 4 required:"]
+    B --> C["low_threshold<br/>default: 3.0"]
+    B --> D["high_threshold<br/>default: 10.0"]
+    B --> E["cooldown_ticks<br/>default: 10"]
+    B --> F["exploration_prob<br/>default: 0.3"]
+    
+    A --> G["Internal State<br/>Fixed/Derived:"]
+    G --> H["eval_window: 10 ticks<br/>FIXED - not configurable"]
+    G --> I["mutation_transitions<br/>Dict tracking counts"]
+    G --> J["mutation_history<br/>List tracking details"]
+    G --> K["greedy_exit: 5.0<br/>earnings_max_exit: 7.5"]
+    
+    style C fill:#fff9c4
+    style D fill:#fff9c4
+    style E fill:#fff9c4
+    style F fill:#fff9c4
+    style H fill:#bbdefb
+```
+
+## 9. Behaviour Parameters
+
+```mermaid
+graph TD
+    A["Behaviour Strategies"] --> B["GreedyDistanceBehaviour<br/>GREEDY_MAX_DISTANCE = 10.0"]
+    A --> C["EarningsMaxBehaviour<br/>EARNINGS_MIN_REWARD_PER_TIME = 0.8"]
+    A --> D["LazyBehaviour<br/>LAZY_IDLE_TICKS_NEEDED = 5<br/>LAZY_MAX_DISTANCE = 5.0"]
+    
+    B --> B1["decide(): distance <= 10.0?<br/>When: avg < 3.0<br/>Goal: Increase job volume"]
+    C --> C1["decide(): reward/time >= 0.8?<br/>When: avg > 10.0<br/>Goal: Optimize profit margin"]
+    D --> D1["decide(): idle >= 5 AND distance < 5?<br/>When: reset/normal<br/>Goal: Neutral/exploratory"]
+    
+    style B fill:#ef5350
+    style C fill:#42a5f5
+    style D fill:#fff9c4
+```
+
+## 10. Complete Simulation Tick Sequence
+
+```mermaid
+graph TD
+    A["TICK N"] --> B["Phase 1: Generate Requests"]
+    B --> C["Phase 2: Expire Requests"]
+    C --> D["Phase 3: Get Proposals"]
+    D --> E["Phase 4: Collect Offers<br/>Uses CURRENT behaviour"]
+    E --> F["Phase 5: Resolve Conflicts"]
+    F --> G["Phase 6: Assign Requests"]
+    G --> H["Phase 7: Move Drivers"]
+    H --> I["Phase 8: MUTATE DRIVERS<br/>Behaviour changed here"]
+    I --> J["Phase 9: Increment Time"]
+    J --> K["TICK N+1"]
+    K --> L["Phase 4: Collect Offers<br/>Uses NEW behaviour"]
+    
+    style E fill:#fff9c4
+    style I fill:#bbdefb
+    style L fill:#c8e6c9
+```
+
+## 11. Mutation Recording & Data Tracking
+
+```mermaid
+graph TD
+    A["Mutation Occurs"] --> B["Record in mutation_history"]
+    B --> C["Entry Dict:<br/>- time: int<br/>- driver_id: int<br/>- from_behaviour: str<br/>- to_behaviour: str<br/>- reason: str<br/>- avg_fare: float"]
+    C --> D["Track in mutation_transitions"]
+    D --> E["Key: Tuple<br/>(from_behaviour, to_behaviour)"]
+    E --> F["Value: int<br/>Count of transitions"]
+    
+    C --> G["Reason Types:<br/>- performance_low_earnings<br/>- performance_high_earnings<br/>- exit_greedy<br/>- exit_earnings<br/>- stagnation_exploration"]
+    
+    style C fill:#fff9c4
+    style G fill:#fff9c4
+```
+
+## 12. Data Flow: History to Mutation
+
+```mermaid
+graph LR
+    A["driver.history"] -->|Last 10 trips| B["get_driver_history_window()<br/>default window=10"]
+    B --> C["List[Dict]<br/>fare entries"]
+    C --> D["calculate_average_fare()"]
+    D --> E["avg_fare: float"]
+    E --> F["maybe_mutate()"]
+    F --> G{Decision<br/>made}
+    G -->|avg < 3.0| H["Switch to Greedy<br/>accept more volume"]
+    G -->|avg > 10.0| I["Switch to EarningsMax<br/>become selective"]
+    G -->|Stagnating| J["Explore<br/>try something new"]
+    G -->|Normal| K["Stay<br/>current behaviour"]
+    
+    style A fill:#e3f2fd
+    style E fill:#fff9c4
+    style H fill:#ef5350
+    style I fill:#42a5f5
+    style J fill:#bbdefb
+    style K fill:#f0f0f0
+```
+
+## 13. Stagnation Variance Algorithm Details
+
+```mermaid
+graph TD
+    A["Stagnation Detection<br/>_is_stagnating()"] --> B["Require minimum<br/>len history >= 2"]
+    B --> C["Extract fares list<br/>fares = [...]"]
+    C --> D["Calculate average<br/>sum(fares) / len"]
+    D --> E["Validate avg > 0.1<br/>Avoid division issues"]
+    E --> F["Calculate tolerance<br/>tol = avg * 0.05"]
+    F --> G["For each fare f:<br/>abs f - avg <= tol?"]
+    G --> H["Count within-band fares<br/>stagnant_count"]
+    H --> I["Check threshold<br/>count >= len * 0.7"]
+    I -->|YES| J["Return True"]
+    I -->|NO| K["Return False"]
+    
+    style J fill:#ef5350
+    style K fill:#66bb6a
+```
+
+## 14. Exploration with Current Behaviour Exclusion
+
+```mermaid
+graph TD
+    A["Exploration Check<br/>_is_stagnating() AND<br/>random() < 0.3"] --> B["Get current behaviour name<br/>old_behaviour_name"]
+    B --> C["Extract shorthand<br/>split on 'B' + lowercase<br/>e.g., Greedy→greedy"]
+    C --> D["All available<br/>[greedy, earnings, lazy]"]
+    D --> E["Filter exclusion<br/>remove current_short"]
+    E --> F["available_choices<br/>2 items remaining"]
+    F --> G["random.choice<br/>from available_choices"]
+    G --> H{which choice?}
+    H -->|greedy| I["GreedyDistanceBehaviour"]
+    H -->|earnings| J["EarningsMaxBehaviour"]
+    H -->|lazy| K["LazyBehaviour"]
+    I --> L["Switch behaviour<br/>Record exploration<br/>Set cooldown"]
+    J --> L
+    K --> L
+    
+    style E fill:#fff9c4
+    style F fill:#fff9c4
+    style L fill:#c8e6c9
+```
+
+## 15. Mutation Metrics and Reporting
+
+```mermaid
+graph TD
+    A["Mutation System<br/>Output Data"] --> B["mutation_transitions<br/>Dict[Tuple, int]"]
+    B --> C["Aggregate Counts<br/>Example:<br/>Greedy→Earnings: 12<br/>Earnings→Lazy: 8<br/>Lazy→Greedy: 15"]
+    
+    A --> D["mutation_history<br/>List[Dict]"]
+    D --> E["Detailed Records<br/>Each mutation:<br/>time, driver_id<br/>from/to, reason<br/>avg_fare, ..."]
+    
+    C --> F["Analysis Possible<br/>- Strategy distribution<br/>- Transition patterns<br/>- Success rate<br/>- Duration in each"]
+    
+    E --> F
+    
+    style C fill:#fff9c4
+    style E fill:#fff9c4
+    style F fill:#c8e6c9
+```
+
     HybridMutation --> Driver
     HybridMutation --> DriverBehaviour
     Driver --> DriverBehaviour

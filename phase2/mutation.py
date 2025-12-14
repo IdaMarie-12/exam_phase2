@@ -34,7 +34,6 @@ if TYPE_CHECKING:
 HYBRID_LOW_EARNINGS_THRESHOLD = 3.0      # Switch to greedy if earnings drop below this
 HYBRID_HIGH_EARNINGS_THRESHOLD = 10.0    # Switch to earnings-max if earnings exceed this
 HYBRID_COOLDOWN_TICKS = 10               # Minimum ticks between mutations (avoid churn)
-HYBRID_STAGNATION_WINDOW = 8             # If earnings stagnate for this many ticks, explore
 HYBRID_EXPLORATION_PROBABILITY = 0.3     # 30% chance to explore when stagnating
 
 # Greedy mutation: Accept nearby pickups
@@ -82,34 +81,28 @@ class HybridMutation(MutationRule):
 
     def __init__(
         self,
-        window: int = 5,
         low_threshold: float = HYBRID_LOW_EARNINGS_THRESHOLD,
         high_threshold: float = HYBRID_HIGH_EARNINGS_THRESHOLD,
         cooldown_ticks: int = HYBRID_COOLDOWN_TICKS,
-        stagnation_window: int = HYBRID_STAGNATION_WINDOW,
         exploration_prob: float = HYBRID_EXPLORATION_PROBABILITY
     ):
-        """Initialize with earnings window, thresholds, cooldown, and stagnation parameters."""
-        if window <= 0:
-            raise ValueError(f"window must be > 0, got {window}")
+        """Initialize with earnings thresholds, cooldown, and exploration parameters.
+        
+        Note: Evaluation window is fixed at 10 ticks (matches cooldown period).
+        """
         if low_threshold < 0:
             raise ValueError(f"low_threshold must be >= 0, got {low_threshold}")
         if high_threshold < low_threshold:
             raise ValueError(f"high_threshold must be >= low_threshold")
         if cooldown_ticks < 0:
             raise ValueError(f"cooldown_ticks must be >= 0, got {cooldown_ticks}")
-        if stagnation_window <= 0:
-            raise ValueError(f"stagnation_window must be > 0, got {stagnation_window}")
         if not (0.0 <= exploration_prob <= 1.0):
             raise ValueError(f"exploration_prob must be in [0, 1], got {exploration_prob}")
         
-        self.window = window
         self.low_threshold = low_threshold
         self.high_threshold = high_threshold
         self.cooldown_ticks = cooldown_ticks
-        self.stagnation_window = stagnation_window
         self.exploration_prob = exploration_prob
-        
         # Track mutations for reporting: {(from_behaviour, to_behaviour): count}
         self.mutation_transitions = {}
         
@@ -118,19 +111,18 @@ class HybridMutation(MutationRule):
         self.mutation_history = []
         
         # Exit thresholds for behaviour-specific conditions
-        # More generous thresholds to allow drivers time in each behaviour
-        self.greedy_exit_threshold = 7.5        # Exit greedy only when earnings well-recovered (>25% above low threshold)
-        self.earnings_max_exit_threshold = 5.0  # Exit earnings-max when struggling significantly (<low threshold + 2)
-        self.lazy_min_success_threshold = 5.0   # Lazy is the neutral/reset behaviour
+        # Balanced hysteresis: proportional gaps between entry and exit
+        self.greedy_exit_threshold = 5.0        # Exit greedy at 1.67x entry (moderate recovery allows time in behaviour)
+        self.earnings_max_exit_threshold = 7.5  # Exit earnings-max at 0.75x entry (drop from thriving triggers exit)
 
     def _average_fare(self, driver: Driver) -> Optional[float]:
-        """Return average fare from last window trips, or None if insufficient history."""
-        history = get_driver_history_window(driver.history, self.window)
+        """Return average fare from last 10 trips, or None if insufficient history."""
+        history = get_driver_history_window(driver.history)
         return calculate_average_fare(history)
 
     def _is_stagnating(self, driver: Driver) -> bool:
-        """Check if driver earnings are stagnating (no improvement over recent window)."""
-        history = get_driver_history_window(driver.history, self.stagnation_window)
+        """Check if driver earnings are stagnating (low variance over last 10 trips)."""
+        history = get_driver_history_window(driver.history)
         if len(history) < 2:
             return False
         
@@ -255,9 +247,24 @@ class HybridMutation(MutationRule):
             self._record_mutation(driver, time)
         elif self._is_stagnating(driver):
             # SECONDARY: Stagnating performance → explore to break pattern
-            if random.random() < self.exploration_prob:
-                # Randomly try a different behaviour
-                choice = random.choice(["greedy", "earnings", "lazy"])
+            # For Lazy: Always explore (must try something active)
+            # For Greedy/EarningsMax: 30% chance to explore
+            
+            # Extract behaviour shorthand: "GreedyDistanceBehaviour" → "greedy", etc.
+            if "Greedy" in old_behaviour_name:
+                current_behaviour_short = "greedy"
+            elif "Earnings" in old_behaviour_name:
+                current_behaviour_short = "earnings"
+            else:
+                current_behaviour_short = "lazy"
+            
+            should_explore = (current_behaviour_short == "lazy") or (random.random() < self.exploration_prob)
+            
+            if should_explore:
+                # Pick from behaviours different from current
+                available_choices = [b for b in ["greedy", "earnings", "lazy"] if b != current_behaviour_short]
+                choice = random.choice(available_choices)
+                
                 if choice == "greedy":
                     driver.behaviour = GreedyDistanceBehaviour(max_distance=GREEDY_MAX_DISTANCE)
                     self._track_transition(old_behaviour_name, "GreedyDistanceBehaviour")

@@ -93,6 +93,7 @@ from ..offer import Offer
 from ..point import Point
 from ..driver import Driver
 from ..behaviours import LazyBehaviour, GreedyDistanceBehaviour, EarningsMaxBehaviour
+from ..mutation import GREEDY_MAX_DISTANCE, EARNINGS_MIN_REWARD_PER_TIME, LAZY_IDLE_TICKS_NEEDED
 import random
 
 
@@ -104,7 +105,7 @@ def _assign_random_behaviour() -> "DriverBehaviour":
     """Randomly assign one of three driver behaviours.
     
     Pure function: only creates and returns a behaviour object without side effects.
-    Does not store threshold data; behaviours use their defaults.
+    Uses module-level constants from mutation.py for behaviour parameters.
     Thresholds are only applied during simulation (mutation, decision-making).
     
     Returns:
@@ -119,11 +120,11 @@ def _assign_random_behaviour() -> "DriverBehaviour":
     choice = random.choice(["greedy", "earnings", "lazy"])
     
     if choice == "greedy":
-        return GreedyDistanceBehaviour()
+        return GreedyDistanceBehaviour(max_distance=GREEDY_MAX_DISTANCE)
     elif choice == "earnings":
-        return EarningsMaxBehaviour()
+        return EarningsMaxBehaviour(min_reward_per_time=EARNINGS_MIN_REWARD_PER_TIME)
     else:  # choice == "lazy"
-        return LazyBehaviour()
+        return LazyBehaviour(idle_ticks_needed=LAZY_IDLE_TICKS_NEEDED)
 
 
 def create_driver_from_dict(d_dict: dict, idx: int = 0) -> "Driver":

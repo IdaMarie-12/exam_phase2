@@ -161,11 +161,11 @@ def _plot_behaviour_distribution_evolution(ax, time_series: Optional[SimulationT
 
 
 def _plot_mutations_and_stagnation(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot cumulative mutations and stagnant drivers over time."""
+    """Plot cumulative mutations and earnings stagnation events over time."""
     if time_series is None or not time_series.behaviour_mutations:
         ax.text(0.5, 0.5, 'No mutation/stagnation data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Mutations & Stagnation Trends')
+        ax.set_title('Mutations & Earnings Stagnation Events')
         return
     
     ax2 = ax.twinx()
@@ -176,18 +176,18 @@ def _plot_mutations_and_stagnation(ax, time_series: Optional[SimulationTimeSerie
     ax.fill_between(time_series.times, time_series.behaviour_mutations, 
                     alpha=0.2, color='red')
     
-    # Plot stagnation as line on secondary axis
-    ax2.plot(time_series.times, time_series.behaviour_stagnation,
-             linewidth=2, color='blue', marker='s', markersize=3, label='Stagnant Drivers')
-    ax2.fill_between(time_series.times, time_series.behaviour_stagnation,
-                     alpha=0.2, color='blue')
+    # Plot earnings stagnation events as line on secondary axis
+    ax2.plot(time_series.times, time_series.earnings_stagnation_events,
+             linewidth=2, color='orange', marker='s', markersize=3, label='Earnings Stagnation Events')
+    ax2.fill_between(time_series.times, time_series.earnings_stagnation_events,
+                     alpha=0.2, color='orange')
     
     ax.set_xlabel('Simulation Time (ticks)')
     ax.set_ylabel('Cumulative Mutations', color='red')
-    ax2.set_ylabel('Stagnant Drivers', color='blue')
-    ax.set_title('Mutations & Stagnation Trends')
+    ax2.set_ylabel('Earnings Stagnation Events', color='orange')
+    ax.set_title('Mutations & Earnings Stagnation Events')
     ax.tick_params(axis='y', labelcolor='red')
-    ax2.tick_params(axis='y', labelcolor='blue')
+    ax2.tick_params(axis='y', labelcolor='orange')
     ax.grid(True, alpha=0.3)
     
     # Combine legends
@@ -302,10 +302,10 @@ def _show_behaviour_window(simulation, time_series: Optional[SimulationTimeSerie
 
 
 def _show_mutation_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Display window with mutation rule configuration and stagnation analysis."""
+    """Display window with mutation rule configuration and earnings stagnation analysis."""
     
     fig3 = plt.figure(num=3, figsize=(16, 12))
-    fig3.suptitle('Mutation Rule & Stagnation Analysis', fontsize=14, fontweight='bold')
+    fig3.suptitle('Mutation Rule & Earnings Stagnation Analysis', fontsize=14, fontweight='bold')
     
     # Create grid with 2 rows if time-series available, 1 row otherwise
     num_rows = 2 if (time_series and time_series.behaviour_mutations) else 1
