@@ -56,9 +56,9 @@ def record_completion(history: list, request_id: int, creation_time: int,
     })
 
 
-# ============================================================
-# Mutation helpers (used by mutation.py)
-# ============================================================
+# ====================================================================
+# MUTATION HELPERS (used by mutation.py)
+# ====================================================================
 
 def get_driver_history_window(history: list, window: int) -> list:
     """Return last window entries from history."""

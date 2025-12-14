@@ -11,15 +11,33 @@ import random
 # ====================================================================
 
 def _assign_random_behaviour() -> "DriverBehaviour":
+<<<<<<< HEAD
     """Randomly assign one of three driver behaviours."""
+=======
+    """Randomly assign one of three driver behaviours.
+    
+    Pure function: only creates and returns a behaviour object without side effects.
+    Does not store threshold data; behaviours use their defaults.
+    Thresholds are only applied during simulation (mutation, decision-making).
+    
+    Returns:
+        DriverBehaviour: One of GreedyDistanceBehaviour, EarningsMaxBehaviour, or LazyBehaviour
+        chosen with equal probability (1/3 each).
+        
+    Example:
+        >>> behaviour = _assign_random_behaviour()
+        >>> type(behaviour).__name__ in ["GreedyDistanceBehaviour", "EarningsMaxBehaviour", "LazyBehaviour"]
+        True
+    """
+>>>>>>> origin/dev
     choice = random.choice(["greedy", "earnings", "lazy"])
     
     if choice == "greedy":
-        return GreedyDistanceBehaviour(max_distance=10.0)
+        return GreedyDistanceBehaviour()
     elif choice == "earnings":
-        return EarningsMaxBehaviour(min_reward_per_time=0.8)
+        return EarningsMaxBehaviour()
     else:  # choice == "lazy"
-        return LazyBehaviour(idle_ticks_needed=5)
+        return LazyBehaviour()
 
 
 def create_driver_from_dict(d_dict: dict, idx: int = 0) -> "Driver":
