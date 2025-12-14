@@ -97,15 +97,6 @@ import random
 
 
 # ====================================================================
-# BEHAVIOUR INITIALIZATION CONSTANTS
-# ====================================================================
-
-GREEDY_MAX_DISTANCE = 10.0
-EARNINGS_MIN_REWARD_PER_TIME = 0.8
-LAZY_IDLE_TICKS_NEEDED = 5
-
-
-# ====================================================================
 # DICT <-> OBJECT CONVERSION HELPERS (for adapter)
 # ====================================================================
 
@@ -113,7 +104,8 @@ def _assign_random_behaviour() -> "DriverBehaviour":
     """Randomly assign one of three driver behaviours.
     
     Pure function: only creates and returns a behaviour object without side effects.
-    Uses module-level constants for all parameters.
+    Does not store threshold data; behaviours use their defaults.
+    Thresholds are only applied during simulation (mutation, decision-making).
     
     Returns:
         DriverBehaviour: One of GreedyDistanceBehaviour, EarningsMaxBehaviour, or LazyBehaviour
@@ -127,11 +119,11 @@ def _assign_random_behaviour() -> "DriverBehaviour":
     choice = random.choice(["greedy", "earnings", "lazy"])
     
     if choice == "greedy":
-        return GreedyDistanceBehaviour(max_distance=GREEDY_MAX_DISTANCE)
+        return GreedyDistanceBehaviour()
     elif choice == "earnings":
-        return EarningsMaxBehaviour(min_reward_per_time=EARNINGS_MIN_REWARD_PER_TIME)
+        return EarningsMaxBehaviour()
     else:  # choice == "lazy"
-        return LazyBehaviour(idle_ticks_needed=LAZY_IDLE_TICKS_NEEDED)
+        return LazyBehaviour()
 
 
 def create_driver_from_dict(d_dict: dict, idx: int = 0) -> "Driver":
