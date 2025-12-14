@@ -1,36 +1,3 @@
-"""
-Comprehensive Unit Tests for Point Class
-
-This module tests the Point class - a 2D coordinate system with vector operations.
-
-Key Characteristics:
-    - Pure mathematics (no external dependencies)
-    - Immutable (frozen dataclass)
-    - Hashable (can be used in sets and as dict keys)
-    - Epsilon tolerance for floating-point comparisons
-
-Testing Approach:
-    - NO mocking needed (Point has zero dependencies)
-    - NO patching needed (pure deterministic math)
-    - Just unittest with real Point objects
-    
-Test Coverage:
-    - distance_to(): Euclidean distance calculation
-    - __add__: Vector addition
-    - __sub__: Vector subtraction
-    - __mul__, __rmul__: Scalar multiplication
-    - __iadd__, __isub__: In-place operations
-    - __eq__: Equality with epsilon tolerance
-    - __hash__: Hashability for sets/dicts
-    - __repr__: String representation
-
-Run tests with:
-    $ python -m unittest test.test_point -v
-    $ python -m unittest discover -s test -p test_point.py
-    $ python test/test_point.py
-"""
-
-# Ensure phase2 module can be imported (whether running via unittest or directly)
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))

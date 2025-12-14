@@ -1,8 +1,3 @@
-"""
-Unit tests for Mutation classes and behaviour adaptation strategies.
-Tests HybridMutation with performance-based and exploration-based switching.
-"""
-
 import unittest
 import random
 from phase2.mutation import (

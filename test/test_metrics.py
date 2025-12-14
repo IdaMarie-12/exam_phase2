@@ -1,10 +1,3 @@
-"""
-Unit tests for metrics tracking in SimulationTimeSeries.
-
-Tests behaviour mutation tracking, stagnation analysis, and post-simulation
-summary statistics for comprehensive simulation analysis.
-"""
-
 import unittest
 from unittest.mock import Mock
 
@@ -19,7 +12,7 @@ from phase2.point import Point
 
 
 class MockSimulation:
-    """Mock simulation for testing metrics tracking."""
+    """Mock simulation for metrics tracking tests."""
     
     def __init__(self, num_drivers=3):
         self.time = 0
@@ -313,7 +306,7 @@ class TestBehaviourStagnation(unittest.TestCase):
 # ====================================================================
 
 class TestMutationsVsStagnation(unittest.TestCase):
-    """Test the inverse relationship between mutations and stagnation."""
+    """Test inverse relationship between mutations and stagnation."""
     
     def setUp(self):
         """Set up test fixtures."""

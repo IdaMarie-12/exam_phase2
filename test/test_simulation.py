@@ -1,18 +1,3 @@
-"""
-Comprehensive Unit Tests for DeliverySimulation
-
-Testing Approach:
-    1. Mock external dependencies (generator, policy, mutation)
-    2. Use real Driver and Request objects for integration
-    3. Test initialization, orchestration, snapshots, and state persistence
-    4. Verify type validation and error handling
-
-Run tests with:
-    $ python test/test_simulation.py
-    $ python -m unittest test.test_simulation -v
-"""
-
-# Ensure phase2 module can be imported (whether running via unittest or directly)
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -56,9 +41,7 @@ def create_mock_request(request_id=1, px=0.0, py=0.0, dx=5.0, dy=5.0, creation_t
 # ====================================================================
 
 class TestDeliverySimulationInit(unittest.TestCase):
-    """Test suite for DeliverySimulation.__init__()
-    
-    Tests initialization, validation, and attribute setup.
+    """Test suite for DeliverySimulation.__init__
     """
 
     def setUp(self):

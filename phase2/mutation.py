@@ -1,13 +1,3 @@
-"""
-Behaviour mutation strategies for driver evolution.
-
-Mutations allow drivers to adapt strategies based on performance.
-Provides MutationRule (ABC) with HybridMutation implementation:
-- HybridMutation: Performance-based primary, stagnation-based exploration
-
-Lifecycle: Simulation calls mutation.maybe_mutate(driver, time) each tick.
-"""
-
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional
@@ -28,7 +18,6 @@ if TYPE_CHECKING:
 # ====================================================================
 # MUTATION BEHAVIOUR PARAMETERS (module-level constants)
 # ====================================================================
-# Used when creating new behaviour instances during mutations
 
 # HybridMutation: Thresholds for when to switch behaviours
 HYBRID_LOW_EARNINGS_THRESHOLD = 3.0      # Switch to greedy if earnings drop below this
@@ -53,7 +42,7 @@ LAZY_MAX_DISTANCE = 5.0
 # ====================================================================
 
 class MutationRule(ABC):
-    """Abstract base for driver mutation strategies. Subclasses implement maybe_mutate()."""
+    """Abstract base for driver mutation strategies. Subclasses implement maybe_mutate."""
 
     @abstractmethod
     def maybe_mutate(self, driver: Driver, time: int) -> None:
@@ -74,10 +63,6 @@ class HybridMutation(MutationRule):
     - HIGH earnings: Switch to EARNINGS-MAX (become picky, optimize reward-per-time)
     - STAGNATING earnings: Explore other behaviours to break pattern (30% chance)
     - COOLDOWN: Driver can mutate at most once per 10 ticks (avoid constant switching)
-    
-    This models realistic driver adaptation: struggling drivers accept more work,
-    successful drivers become selective, stagnating drivers experiment, and all drivers
-    need time to adjust to new strategies before switching again.
     """
 
     def __init__(
@@ -114,11 +99,9 @@ class HybridMutation(MutationRule):
         self.mutation_transitions = {}
         
         # Detailed mutation history for debugging/analysis
-        # List of {time, driver_id, from_behaviour, to_behaviour, reason}
         self.mutation_history = []
         
         # Exit thresholds for behaviour-specific conditions
-        # More generous thresholds to allow drivers time in each behaviour
         self.greedy_exit_threshold = 7.5        # Exit greedy only when earnings well-recovered (>25% above low threshold)
         self.earnings_max_exit_threshold = 5.0  # Exit earnings-max when struggling significantly (<low threshold + 2)
         self.lazy_min_success_threshold = 5.0   # Lazy is the neutral/reset behaviour
@@ -152,13 +135,6 @@ class HybridMutation(MutationRule):
         - GreedyDistanceBehaviour: Exit if earnings improve to >= 6.0 (recovered, no longer struggling)
         - EarningsMaxBehaviour: Exit if earnings drop below 6.0 (unsustainable, too picky)
         - LazyBehaviour: No exit (neutral fallback behaviour)
-        
-        Args:
-            driver: Driver to check
-            avg_fare: Average fare from recent trips
-            
-        Returns:
-            bool: True if driver should exit current behaviour
         """
         if avg_fare is None:
             return False
@@ -178,16 +154,7 @@ class HybridMutation(MutationRule):
 
     def _record_detailed_mutation(self, driver_id: int, time: int, from_behaviour: str, 
                                  to_behaviour: str, reason: str, avg_fare: Optional[float] = None) -> None:
-        """Record detailed mutation information for analysis.
-        
-        Args:
-            driver_id: ID of the driver being mutated
-            time: Simulation time of mutation
-            from_behaviour: Behaviour being exited
-            to_behaviour: New behaviour assigned
-            reason: Why mutation occurred (e.g., "exit_greedy_recovered", "performance_low_earnings")
-            avg_fare: Average fare at time of mutation (optional, for context)
-        """
+        """Record detailed mutation information for analysis."""
         entry = {
             "time": time,
             "driver_id": driver_id,
@@ -213,11 +180,7 @@ class HybridMutation(MutationRule):
         self.mutation_transitions[key] = self.mutation_transitions.get(key, 0) + 1
 
     def maybe_mutate(self, driver: Driver, time: int) -> None:
-        """Adapt behaviour based on performance: low→greedy, high→earnings-max, stagnating→explore.
-        
-        Applies exit conditions first: if driver should leave current behaviour, reset to LazyBehaviour.
-        Then applies performance-based mutations if conditions warrant change.
-        """
+        """Adapt behaviour based on performance: low→greedy, high→earnings-max, stagnating→explore."""
         # Check cooldown: driver can only mutate once per N ticks
         if not self._can_mutate(driver, time):
             return

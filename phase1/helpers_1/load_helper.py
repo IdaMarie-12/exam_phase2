@@ -1,65 +1,28 @@
-"""
-load_helper.py - Helper functions for loading and parsing CSV files without using the csv module.
-
-This module provides utility functions for:
-1. Reading and parsing CSV files manually (without csv module)
-2. Validating data types and constraints
-3. Error handling with informative messages
-"""
-
 import os
 from typing import Any
 
 
 def file_exists(path: str) -> None:
-    """
-    Verify that a file exists at the given path.
-    
-    Parameters:
-        path (str): Path to the file
-        
-    Raises:
-        FileNotFoundError: If the file does not exist
-    """
+    """Raise FileNotFoundError if file does not exist at path."""
     if not os.path.exists(path):
         raise FileNotFoundError(f"File does not exist: {path}")
 
 
 def parse_csv_line(line: str) -> list[str]:
-    """
-    Parse a single CSV line into fields, handling quotes and commas.
-    
-    Parameters:
-        line (str): A single line from CSV file
-        
-    Returns:
-        list[str]: List of field values (stripped of whitespace)
-    """
-    # Split by comma and strip whitespace from each field
+    """Parse a CSV line into a list of fields."""
     fields = [field.strip() for field in line.split(',')]
-    return [f for f in fields if f]  # Remove empty fields
+    return [f for f in fields if f]
 
 
 def read_csv_lines(path: str) -> list[str]:
-    """
-    Read all non-comment lines from a CSV file.
-    
-    Parameters:
-        path (str): Path to the CSV file
-        
-    Returns:
-        list[str]: List of lines (excluding comments and empty lines)
-        
-    Raises:
-        FileNotFoundError: If file does not exist
-    """
+    """Read all non-comment lines from a CSV file."""
     file_exists(path)
     
     lines = []
     with open(path, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
-            # Skip comments (lines starting with #) and empty lines
+            # Skip comments and empty lines
             if line and not line.startswith('#'):
                 lines.append(line)
     
@@ -67,20 +30,7 @@ def read_csv_lines(path: str) -> list[str]:
 
 
 def parse_float(value: str, field_name: str, line_num: int) -> float:
-    """
-    Parse a string value as a float with error handling.
-    
-    Parameters:
-        value (str): The value to parse
-        field_name (str): Name of the field (for error messages)
-        line_num (int): Line number in file (for error messages)
-        
-    Returns:
-        float: The parsed value
-        
-    Raises:
-        ValueError: If conversion fails or value is invalid
-    """
+    """Parse a string as float, raise ValueError on failure."""
     try:
         return float(value)
     except ValueError:
@@ -89,24 +39,8 @@ def parse_float(value: str, field_name: str, line_num: int) -> float:
         )
 
 
-def validate_coordinate(value: float, field_name: str, line_num: int, 
-                       min_val: float = 0, max_val: float = 50) -> float:
-    """
-    Validate that a coordinate is within acceptable bounds.
-    
-    Parameters:
-        value (float): The coordinate value
-        field_name (str): Name of the field (e.g., 'px', 'py')
-        line_num (int): Line number in file (for error messages)
-        min_val (float): Minimum allowed value (default 0)
-        max_val (float): Maximum allowed value (default 50)
-        
-    Returns:
-        float: The validated value
-        
-    Raises:
-        ValueError: If value is outside bounds
-    """
+def validate_coordinate(value: float, field_name: str, line_num: int, min_val: float = 0, max_val: float = 50) -> float:
+    """Validate coordinate is within bounds."""
     if not (min_val <= value <= max_val):
         raise ValueError(
             f"Line {line_num}: '{field_name}' = {value} is out of bounds [{min_val}, {max_val}]"
@@ -115,19 +49,7 @@ def validate_coordinate(value: float, field_name: str, line_num: int,
 
 
 def validate_time(value: float, line_num: int) -> float:
-    """
-    Validate that a time value is non-negative.
-    
-    Parameters:
-        value (float): The time value
-        line_num (int): Line number in file (for error messages)
-        
-    Returns:
-        float: The validated value
-        
-    Raises:
-        ValueError: If value is negative
-    """
+    """Validate time is non-negative."""
     if value < 0:
         raise ValueError(
             f"Line {line_num}: Time 't' must be non-negative, got {value}"
@@ -135,20 +57,8 @@ def validate_time(value: float, line_num: int) -> float:
     return value
 
 
-def validate_row_length(row: list[str], expected_length: int, 
-                       line_num: int, file_type: str) -> None:
-    """
-    Validate that a row has the expected number of fields.
-    
-    Parameters:
-        row (list[str]): The parsed row
-        expected_length (int): Expected number of fields
-        line_num (int): Line number in file (for error messages)
-        file_type (str): Type of file ('driver' or 'request')
-        
-    Raises:
-        ValueError: If row doesn't have enough fields
-    """
+def validate_row_length(row: list[str], expected_length: int, line_num: int, file_type: str) -> None:
+    """Validate row has expected number of fields."""
     if len(row) < expected_length:
         raise ValueError(
             f"Line {line_num}: {file_type.upper()} row has {len(row)} fields, "
@@ -157,19 +67,7 @@ def validate_row_length(row: list[str], expected_length: int,
 
 
 def parse_driver_row(row: list[str], line_num: int) -> dict[str, Any]:
-    """
-    Parse and validate a single driver row from CSV.
-    
-    Parameters:
-        row (list[str]): Parsed CSV row with [x, y, ...]
-        line_num (int): Line number in file (for error messages)
-        
-    Returns:
-        dict: Driver dictionary with validated fields
-        
-    Raises:
-        ValueError: If any field is invalid
-    """
+    """Parse and validate a driver row from CSV."""
     validate_row_length(row, 2, line_num, 'driver')
     
     x = parse_float(row[0], 'x', line_num)
@@ -189,19 +87,7 @@ def parse_driver_row(row: list[str], line_num: int) -> dict[str, Any]:
 
 
 def parse_request_row(row: list[str], line_num: int) -> dict[str, Any]:
-    """
-    Parse and validate a single request row from CSV.
-    
-    Parameters:
-        row (list[str]): Parsed CSV row with [t, px, py, dx, dy, ...]
-        line_num (int): Line number in file (for error messages)
-        
-    Returns:
-        dict: Request dictionary with validated fields
-        
-    Raises:
-        ValueError: If any field is invalid or out of bounds
-    """
+    """Parse and validate a request row from CSV."""
     validate_row_length(row, 5, line_num, 'request')
     
     t = parse_float(row[0], 't', line_num)

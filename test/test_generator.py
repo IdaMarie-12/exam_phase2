@@ -1,6 +1,3 @@
-"""
-Unit tests for RequestGenerator and _generate_poisson.
-"""
 import unittest
 from unittest.mock import Mock, patch
 import sys
@@ -14,7 +11,7 @@ from phase2.point import Point
 
 
 class TestGeneratePoisson(unittest.TestCase):
-    """Test the Poisson random number generator function."""
+    """Test Poisson random number generator."""
 
     def test_negative_rate_raises_error(self):
         """Negative rate should raise ValueError."""

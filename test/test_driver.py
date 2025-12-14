@@ -1,14 +1,3 @@
-"""
-Unit tests for Driver class and core_helpers module.
-Tests driver lifecycle, movement, request assignment, and helper utilities.
-Tests only helpers that are used by driver.py:
-- is_at_target()
-- move_towards()
-- calculate_points()
-- record_assignment_start()
-- record_completion()
-"""
-
 import unittest
 from phase2.driver import Driver, IDLE, TO_PICKUP, TO_DROPOFF
 from phase2.point import Point
@@ -22,14 +11,12 @@ from phase2.helpers_2.core_helpers import (
 
 
 def calculate_points(fare: float, wait_time: int) -> float:
-    """Calculate driver points earned from a trip.
-    Formula: points = max(0, fare - 0.1 * wait_time)
-    """
+    """Calculate driver points: max(0, fare - 0.1 * wait_time)."""
     return max(0.0, fare - 0.1 * wait_time)
 
 
 class TestPointHelpers(unittest.TestCase):
-    """Test helper functions that work with Point objects."""
+    """Test Point helper functions."""
 
     def test_is_at_target_exact_match(self):
         """Driver is at target when positions are identical."""
@@ -114,7 +101,7 @@ class TestPointHelpers(unittest.TestCase):
 
 
 class TestHistoryRecording(unittest.TestCase):
-    """Test history recording helper functions."""
+    """Test history recording helpers."""
 
     def test_record_assignment_start(self):
         """record_assignment_start creates correct history entry."""
@@ -195,7 +182,7 @@ class TestCalculatePoints(unittest.TestCase):
 
 
 class TestDriverBasics(unittest.TestCase):
-    """Test basic Driver class functionality."""
+    """Test basic Driver functionality."""
 
     def setUp(self):
         """Create a driver for testing."""

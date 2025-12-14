@@ -4,24 +4,18 @@
 
 from __future__ import annotations
 from typing import Any, Callable, Dict, List, Tuple, Optional
-
-# Import shared I/O functions from Phase 1 (avoids code duplication)
 from phase1.io_mod import load_drivers, load_requests, generate_drivers
-
-# Phase 2 OOP components
 from .generator import RequestGenerator
 from .policies import GlobalGreedyPolicy
 from .mutation import HybridMutation
 from .simulation import DeliverySimulation
-
-# Helper functions for dict <-> object conversion and state extraction
 from .helpers_2.engine_helpers import (
-    sim_to_state_dict,           # Simulation -> GUI state dict
-    get_adapter_metrics,         # Simulation -> metrics dict
-    create_driver_from_dict,     # Driver dict -> Driver object
-    create_request_from_dict,    # Request dict -> Request object
-    request_to_dict,             # Request object -> dict
-    get_plot_data_from_state,    # State dict -> plot tuples
+    sim_to_state_dict,         
+    get_adapter_metrics,         
+    create_driver_from_dict,    
+    create_request_from_dict,    
+    request_to_dict,             
+    get_plot_data_from_state,    
 )
 from .helpers_2.metrics_helpers import SimulationTimeSeries
 
@@ -38,9 +32,6 @@ _time_series: SimulationTimeSeries | None = None  # Track metrics for post-simul
 # Adapter functions (called by GUI)
 # ====================================================================
 
-# load_drivers, load_requests, generate_drivers are imported from phase1.io_mod
-
-# generate_requests uses Phase 2's RequestGenerator (creates Request objects)
 def generate_requests(start_t: int, out_list: List[dict], 
                       req_rate: float, width: int, height: int) -> None:
     """Generate stochastic requests (Poisson-like) and append to out_list."""
@@ -67,8 +58,6 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
     mutation_rule = HybridMutation(window=5, low_threshold=3.0, high_threshold=10.0)
     
     # Create request generator
-    # If CSV requests provided → don't generate new ones (rate=0)
-    # If no CSV requests → generate dynamically using req_rate
     effective_rate = 0 if len(requests_data) > 0 else req_rate
     generator = RequestGenerator(rate=effective_rate, width=width, height=height)
     
@@ -82,9 +71,8 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
     )
     
     # Store pre-loaded CSV requests for time-based injection
-    # They will be added during gen_requests() as their creation_time arrives
     _simulation._all_csv_requests = requests
-    _simulation._csv_requests_index = 0  # Track which CSV requests have been added
+    _simulation._csv_requests_index = 0 
     
     # Initialize time-series tracking for post-simulation reporting
     global _time_series
@@ -106,17 +94,16 @@ def simulate_step(state: dict) -> Tuple[dict, dict]:
                 "Simulation not initialized. Call init_state() first. "
                 "State dict is missing required keys: 't', 'drivers', 'pending'."
             )
-        # State exists but simulation object was lost - this shouldn't happen in normal flow
-        # but we can't recover without the actual simulation objects
+        # State exists but simulation object was lost
         raise RuntimeError(
             "Simulation not initialized. Call init_state() first. "
             "The simulation context was lost (possible module reload)."
         )
     
-    # Run one simulation tick (executes 9-step orchestration in engine_helpers)
+    # Run one simulation tick
     _simulation.tick()
     
-    # Record metrics for post-simulation reporting (time-series tracking)
+    # Record metrics for post-simulation reporting
     if _time_series is not None:
         _time_series.record_tick(_simulation)
     

@@ -1,17 +1,3 @@
-"""
-Unit tests for the Phase 2 Adapter module.
-
-Tests the adapter layer that bridges the OOP simulation (Phase 2) 
-with the GUI's procedural interface expectations.
-
-The adapter provides:
-- Request generation wrapper
-- Simulation initialization
-- Step execution and state extraction
-- Post-simulation reporting
-- Backend factory function
-"""
-
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 from phase2.adapter import (
@@ -30,10 +16,10 @@ from phase2.simulation import DeliverySimulation
 
 
 class TestGenerateRequests(unittest.TestCase):
-    """Test the generate_requests wrapper function."""
+    """Test generate_requests wrapper."""
 
     def test_generate_requests_appends_to_list(self):
-        """generate_requests creates Request dicts and appends to list."""
+        """Should create and append request dicts to out_list."""
         out_list = []
         generate_requests(start_t=0, out_list=out_list, req_rate=0.5, 
                          width=50, height=50)
@@ -72,7 +58,7 @@ class TestGenerateRequests(unittest.TestCase):
 
 
 class TestInitState(unittest.TestCase):
-    """Test state initialization function."""
+    """Test state initialization."""
 
     def setUp(self):
         """Create sample driver and request data."""
@@ -92,7 +78,7 @@ class TestInitState(unittest.TestCase):
         ]
 
     def test_init_state_returns_dict(self):
-        """init_state returns a state dictionary."""
+        """init_state returns a state dict."""
         result = init_state(self.drivers_data, self.requests_data,
                            timeout=1000, req_rate=1.0, width=50, height=50)
         
@@ -136,7 +122,7 @@ class TestInitState(unittest.TestCase):
 
 
 class TestSimulateStep(unittest.TestCase):
-    """Test the simulate_step wrapper function."""
+    """Test simulate_step wrapper."""
 
     def setUp(self):
         """Initialize a simulation for testing."""
@@ -153,7 +139,7 @@ class TestSimulateStep(unittest.TestCase):
         self.assertEqual(len(result), 2)
 
     def test_simulate_step_increments_time(self):
-        """simulate_step should increment simulation time."""
+        """simulate_step increments simulation time."""
         old_time = self.state.get('t', 0)
         result_state, _ = simulate_step(self.state)
         new_time = result_state.get('t', 0)
@@ -178,7 +164,7 @@ class TestSimulateStep(unittest.TestCase):
 
 
 class TestGetPlotData(unittest.TestCase):
-    """Test plot data extraction function."""
+    """Test get_plot_data extraction."""
 
     def setUp(self):
         """Initialize a simulation."""
@@ -219,7 +205,7 @@ class TestGetPlotData(unittest.TestCase):
 
 
 class TestGetSimulation(unittest.TestCase):
-    """Test get_simulation accessor function."""
+    """Test get_simulation accessor."""
 
     def test_get_simulation_returns_none_initially(self):
         """get_simulation returns None if not initialized."""
@@ -242,7 +228,7 @@ class TestGetSimulation(unittest.TestCase):
 
 
 class TestGetTimeSeries(unittest.TestCase):
-    """Test get_time_series accessor function."""
+    """Test get_time_series accessor."""
 
     def test_get_time_series_returns_none_initially(self):
         """get_time_series returns None if not started."""
@@ -266,10 +252,10 @@ class TestGetTimeSeries(unittest.TestCase):
 
 
 class TestCreatePhase2Backend(unittest.TestCase):
-    """Test the backend factory function."""
+    """Test backend factory function."""
 
     def test_create_phase2_backend_returns_dict(self):
-        """create_phase2_backend returns a dictionary."""
+        """create_phase2_backend returns a dict."""
         result = create_phase2_backend()
         
         self.assertIsInstance(result, dict)
@@ -314,7 +300,7 @@ class TestAdapterIntegration(unittest.TestCase):
     """Integration tests for adapter workflow."""
 
     def test_full_workflow_init_and_step(self):
-        """Test complete workflow: init -> step -> get plot data."""
+        """Test complete workflow: init, step, get plot data."""
         drivers_data = [
             {'id': 1, 'x': 10.0, 'y': 20.0},
             {'id': 2, 'x': 30.0, 'y': 40.0},
@@ -349,7 +335,7 @@ class TestAdapterIntegration(unittest.TestCase):
             self.assertGreaterEqual(state['t'], i)
 
     def test_adapter_with_initial_requests(self):
-        """Test adapter with pre-loaded requests arriving at their creation_time."""
+        """Test adapter with pre-loaded requests arriving at creation_time."""
         drivers_data = [{'id': 1, 'x': 10.0, 'y': 20.0}]
         requests_data = [
             {
