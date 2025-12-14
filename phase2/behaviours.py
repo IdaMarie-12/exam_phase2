@@ -1,5 +1,5 @@
-from abc import ABC, abstractmethod #is used for abstract base classes
-from typing import TYPE_CHECKING #is used to avoid circular imports while maintaining type hints
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .offer import Offer
@@ -14,45 +14,25 @@ LAZY_MAX_PICKUP_DISTANCE = 5.0
 
 
 class DriverBehaviour(ABC):
-    """Abstract base class for driver decision strategies.
-    
-    Subclasses implement decide(driver, offer, time) to return True (accept) or False (reject).
-    """
+    """Abstract base class for driver decision strategies."""
 
     @abstractmethod
     def decide(self, driver: "Driver", offer: "Offer", time: int) -> bool:
-        """Decide whether driver accepts the offer. Returns True or False.
-        
-        Subclasses implement their own decision logic. Called during offer collection phase.
-        """
+        """Decide whether driver accepts the offer."""
         raise NotImplementedError("Subclasses must implement decide()")
 
 
 class GreedyDistanceBehaviour(DriverBehaviour):
-    """Accept offers with pickup distance <= max_distance threshold.
-    
-    Pragmatic drivers who value convenience and short travel distances.
-    """
+    """Accept offers with pickup distance <= max_distance threshold."""
 
     def __init__(self, max_distance: float):
-        """
-        Initialize greedy distance behaviour.
-        
-        Args:
-            max_distance: Maximum acceptable pickup distance (units)
-            
-        Raises:
-            ValueError: If max_distance <= 0
-        """
+        """Initialize greedy distance behaviour."""
         if max_distance <= 0:
             raise ValueError(f"max_distance must be positive, got {max_distance}")
         self.max_distance = max_distance
 
     def decide(self, driver: "Driver", offer: "Offer", time: int) -> bool:
-        """Accept if pickup distance is within max_distance threshold.
-        
-        Raises TypeError if arguments have wrong types.
-        """
+        """Accept if pickup distance is within max_distance threshold."""
         from .driver import Driver as DriverClass
         from .offer import Offer as OfferClass
         
@@ -69,27 +49,17 @@ class GreedyDistanceBehaviour(DriverBehaviour):
 
 class EarningsMaxBehaviour(DriverBehaviour):
     """Accept offers where reward/travel_time >= threshold.
-    
     Efficiency-focused drivers who maximize hourly earnings regardless of distance.
     """
 
     def __init__(self, min_reward_per_time: float):
-        """
-        Initialize earnings maximization behaviour.
-        
-        Args:
-            min_reward_per_time: Minimum acceptable reward-per-time ratio
-            
-        Raises:
-            ValueError: If min_reward_per_time < 0
-        """
+        """Initialize earnings maximization behaviour."""
         if min_reward_per_time < 0:
             raise ValueError(f"min_reward_per_time must be non-negative, got {min_reward_per_time}")
         self.threshold = min_reward_per_time
 
     def decide(self, driver: "Driver", offer: "Offer", time: int) -> bool:
-        """Accept if reward/travel_time >= threshold. Returns False if travel_time <= 0.
-        """
+        """Accept if reward/travel_time >= threshold."""
         from .driver import Driver as DriverClass
         from .offer import Offer as OfferClass
         
@@ -106,27 +76,17 @@ class EarningsMaxBehaviour(DriverBehaviour):
 
 class LazyBehaviour(DriverBehaviour):
     """Accept only if driver idle >= min_ticks AND pickup distance < 5.0 units.
-    
     Selective drivers who need rest and prefer nearby jobs.
     """
 
     def __init__(self, idle_ticks_needed: int):
-        """
-        Initialize lazy behaviour.
-        
-        Args:
-            idle_ticks_needed: Minimum idle time in simulation ticks before accepting work
-            
-        Raises:
-            ValueError: If idle_ticks_needed < 0
-        """
+        """Initialize lazy behaviour."""
         if idle_ticks_needed < 0:
             raise ValueError(f"idle_ticks_needed must be non-negative, got {idle_ticks_needed}")
         self.idle_ticks_needed = idle_ticks_needed
 
     def decide(self, driver: "Driver", offer: "Offer", time: int) -> bool:
-        """Accept only if idle >= min_ticks AND pickup distance < 5.0. Raises TypeError for wrong types.
-        """
+        """Accept only if idle >= min_ticks AND pickup distance < 5.0."""
         from .driver import Driver as DriverClass
         from .offer import Offer as OfferClass
         

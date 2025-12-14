@@ -48,7 +48,7 @@ or import and call `main()` with your backend:
 
 Notes
 -----
-- If you don’t pass a backend (or the optional import below fails),
+- If you don't pass a backend (or the optional import below fails),
   `run_app()` is called without arguments and is expected to construct
   a default backend internally, only for the teachers.
 """
@@ -89,7 +89,6 @@ def main(backend: Optional[Dict[str, Callable[..., Any]]] = None) -> None:
 if __name__ == "__main__":
     try:
         from phase1 import io_mod, sim_mod  # type: ignore
-
         _backend = {
             "load_drivers": io_mod.load_drivers,
             "load_requests": io_mod.load_requests,
@@ -118,6 +117,11 @@ if __name__ == "__main__":
         if sim is not None and time_series is not None:
             print("\n" + "=" * 60)
             print("GENERATING POST-SIMULATION REPORT")
+            print("=" * 60)
+            print(f"Simulation ticks: {sim.time}")
+            print(f"Requests served: {sim.served_count}")
+            print(f"Requests expired: {sim.expired_count}")
+            print(f"Time-series data points: {len(time_series.times)}")
             print("=" * 60 + "\n")
             
             try:
@@ -125,8 +129,16 @@ if __name__ == "__main__":
             except RuntimeError as e:
                 print(f"Could not generate plots: {e}")
                 print("Install matplotlib to view plots: pip install matplotlib\n")
-    except ImportError:
+        else:
+            print("\nNo simulation data available for reporting.")
+            if sim is None:
+                print("  - Simulation object: None")
+            if time_series is None:
+                print("  - Time-series data: None")
+    except ImportError as ie:
         # Phase 2 or reporting not available - skip reporting
-        pass
+        print(f"Reporting skipped: {ie}")
     except Exception as e:
         print(f"Error generating report: {e}")
+        import traceback
+        traceback.print_exc()

@@ -1,8 +1,7 @@
 import io_mod
 import sim_mod
 
-# Creating a backend that references all central functions,
-# making them easily accessible throughout the program
+# Backend dictionary for central function access
 backend = {
     "load_drivers": io_mod.load_drivers,
     "load_requests": io_mod.load_requests,
