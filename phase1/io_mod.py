@@ -10,6 +10,7 @@ from .helpers_1.generate_helper import (
     generate_request_count,
     create_driver_dict,
     create_request_dict,
+)
 
 def load_drivers(path: str) -> list[dict]:
     """Load drivers from a CSV file."""
@@ -34,13 +35,14 @@ def load_requests(path: str) -> list[dict]:
 
     rows = read_csv_lines(path)
 
+
     try:
         requests: list[dict] = []
         for idx, line in enumerate(rows):
             line_num = idx + 2  # Actual line number in file (line 1 is header)
+            row = parse_csv_line(line)
             if not row:
                 continue
-        
             req = parse_request_row(row, line_num)
             requests.append({"id": idx, **req})
     except Exception as exc:
@@ -74,7 +76,6 @@ def generate_drivers(n: int, width: int, height: int) -> list[dict]:
             driver["y"] = float(y)
             driver.setdefault("vy", 0.0)
             driver.setdefault("tx", None)
-                         width: int, height: int) -> None:
             driver.setdefault("status", "idle")
             driver.setdefault("request_id", None)
             drivers.append(driver)
