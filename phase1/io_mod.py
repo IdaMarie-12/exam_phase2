@@ -1,20 +1,3 @@
-"""
-io_mod.py - Input/Output helpers for the dispatch simulation.
-
-Responsibilities
-----------------
-* Load drivers and requests from CSV files using the custom parsers in
-    ``helpers_1.load_helper`` (no stdlib ``csv``).
-* Generate synthetic drivers/requests for procedural runs.
-* Keep validation in the helpers so bad files fail fast (missing/invalid/out-of-bounds).
-
-Notes
------
-* Driver CSV: two numeric columns (x, y) within the grid bounds expected by the helpers.
-* Request CSV: five numeric columns (t, px, py, dx, dy) within bounds; times are integers.
-* Generation uses Poisson arrivals for requests to mimic stochastic demand.
-"""
-
 import random
 
 from .helpers_1.load_helper import (
@@ -30,17 +13,8 @@ from .helpers_1.generate_helper import (
 )
 
 def load_drivers(path: str) -> list[dict]:
-    """Load drivers from CSV.
+    """Load drivers from a CSV file."""
 
-    Expected CSV format: two numeric columns (x, y). Bounds and types are
-    enforced by ``parse_driver_row``; out-of-bounds or invalid values raise.
-
-    Args:
-        path: Filesystem path to a drivers CSV.
-
-    Returns:
-        A list of driver dicts with parsed fields and an added sequential ``id``.
-    """
     rows = read_csv_lines(path)
 
     drivers: list[dict] = []
@@ -57,19 +31,10 @@ def load_drivers(path: str) -> list[dict]:
 
 
 def load_requests(path: str) -> list[dict]:
-    """Load requests from CSV.
+    """Load requests from a CSV file. ests CSV."""
 
-    Expected CSV format: five numeric columns (t, px, py, dx, dy). Validation
-    and bounds checking are handled by ``parse_request_row`` and will raise on
-    bad input.
-
-    Args:
-        path: Filesystem path to a requests CSV.
-
-    Returns:
-        A list of request dicts with parsed fields plus a sequential ``id``.
-    """
     rows = read_csv_lines(path)
+
 
     try:
         requests: list[dict] = []
@@ -78,7 +43,6 @@ def load_requests(path: str) -> list[dict]:
             row = parse_csv_line(line)
             if not row:
                 continue
-
             req = parse_request_row(row, line_num)
             requests.append({"id": idx, **req})
     except Exception as exc:
@@ -89,20 +53,8 @@ def load_requests(path: str) -> list[dict]:
 
 
 def generate_drivers(n: int, width: int, height: int) -> list[dict]:
-    """Generate ``n`` random drivers uniformly within the grid.
-
-    Args:
-        n: Number of drivers to create (must be non-negative).
-        width: Grid width (max x, inclusive upper bound).
-        height: Grid height (max y, inclusive upper bound).
-
-    Returns:
-        List of driver dicts with unique ``id`` and random positions in bounds.
-
-    Raises:
-        ValueError: If ``n`` is negative.
-    """
-    # Ensure n is an integer (GUI might pass float)
+    """Generate n random drivers within the grid."""
+    
     n = int(n)
     
     if n < 0:
@@ -122,11 +74,8 @@ def generate_drivers(n: int, width: int, height: int) -> list[dict]:
             driver = create_driver_dict(driver_id, width, height)
             driver["x"] = float(x)
             driver["y"] = float(y)
-            driver.setdefault("vx", 0.0)
             driver.setdefault("vy", 0.0)
             driver.setdefault("tx", None)
-            driver.setdefault("ty", None)
-            driver.setdefault("target_id", None)
             driver.setdefault("status", "idle")
             driver.setdefault("request_id", None)
             drivers.append(driver)
@@ -135,24 +84,8 @@ def generate_drivers(n: int, width: int, height: int) -> list[dict]:
     return drivers
 
 
-def generate_requests(start_t: int, out_list: list[dict], req_rate: float,
-                     width: int, height: int) -> None:
-    """Append stochastically generated requests to ``out_list`` at time ``start_t``.
-
-    Uses a Poisson draw (``generate_request_count``) with rate ``req_rate`` to
-    decide how many requests to create, then builds each via
-    ``create_request_dict`` using random positions in the given grid.
-
-    Args:
-        start_t: Current simulation tick; stamped into each request.
-        out_list: Mutable list to extend with new request dicts.
-        req_rate: Expected requests per tick (λ for the Poisson sampler).
-        width: Grid width for random positions.
-        height: Grid height for random positions.
-
-    Raises:
-        ValueError: If ``req_rate`` is negative.
-    """
+def generate_requests(start_t: int, out_list: list[dict], req_rate: float,width: int, height: int) -> None:
+    """Generate requests using Poisson sampling and append to out_list at start_t."""
     if req_rate < 0:
         raise ValueError(f"Request rate must be non-negative, got {req_rate}")
     

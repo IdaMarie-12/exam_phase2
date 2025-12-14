@@ -10,11 +10,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class Offer:
-    """Dispatch proposal from policy to driver.
-    
-    Contains driver, request, estimated travel time and reward.
-    Drivers use offers to decide whether to accept delivery.
-    """
+    """Dispatch proposal from policy to driver."""
 
     driver: Driver
     request: Request
@@ -24,10 +20,7 @@ class Offer:
     policy_name: Optional[str] = None
 
     def reward_per_time(self) -> float:
-        """Return reward per unit time (reward / travel_time).
-        
-        Returns 0.0 for invalid travel times to prevent division by zero.
-        """
+        """Return reward per unit time (reward / travel_time)."""
         if self.estimated_travel_time <= 0.0:
             return 0.0
         return self.estimated_reward / self.estimated_travel_time

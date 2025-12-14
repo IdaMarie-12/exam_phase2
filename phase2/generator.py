@@ -37,9 +37,7 @@ class RequestGenerator:
 
     def __init__(self, rate: float, width: int, height: int, start_id: int = 1,
                  enabled: bool = True):
-        """
-        Initialize the request generator.
-        """
+        """Initialize the request generator."""
         if rate < 0:
             raise ValueError(f"Request rate must be non-negative, got {rate}")
         if width <= 0:
@@ -47,16 +45,14 @@ class RequestGenerator:
         if height <= 0:
             raise ValueError(f"Map height must be positive, got {height}")
         
-        self.rate = rate           # Expected number of requests per tick (Poisson λ)
-        self.width = width         # Map width for position bounds
-        self.height = height       # Map height for position bounds
-        self.next_id = start_id    # Next request ID to use (auto-incremented)
-        self.enabled = enabled     # Whether to generate requests
+        self.rate = rate          
+        self.width = width         
+        self.height = height       
+        self.next_id = start_id    
+        self.enabled = enabled     
 
     def maybe_generate(self, time: int) -> List["Request"]:
-        """
-        Generate requests at the given simulation time.
-        """
+        """Generate requests at the given simulation time."""
         # If disabled, return empty list (used when CSV requests are loaded)
         if not self.enabled:
             return []
@@ -66,7 +62,6 @@ class RequestGenerator:
         from phase2.point import Point
         
         # Generate number of requests from Poisson distribution
-        # This models realistic stochastic event arrival
         num_requests = _generate_poisson(self.rate)
 
         new_requests: List[Request] = []
@@ -77,9 +72,8 @@ class RequestGenerator:
             py = random.uniform(0, self.height)
 
             # Generate dropoff coordinates, ensure different from pickup
-            # Use epsilon tolerance for floating-point comparison
             EPSILON = 1e-9
-            dx, dy = px, py  # Initialize same as pickup
+            dx, dy = px, py
             
             # Keep generating until pickup != dropoff (within tolerance)
             while abs(dx - px) < EPSILON and abs(dy - py) < EPSILON:

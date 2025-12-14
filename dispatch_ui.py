@@ -89,7 +89,6 @@ def main(backend: Optional[Dict[str, Callable[..., Any]]] = None) -> None:
 if __name__ == "__main__":
     try:
         from phase1 import io_mod, sim_mod  # type: ignore
-
         _backend = {
             "load_drivers": io_mod.load_drivers,
             "load_requests": io_mod.load_requests,

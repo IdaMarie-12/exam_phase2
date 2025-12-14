@@ -143,7 +143,7 @@ class TestQuickReport(unittest.TestCase):
         quick_report(sim)
         
         mock_generate.assert_called_once_with(sim, None)
->>>>>>> b0e156e9289235f3095796505dd0159791e8bdf1
+        
 class TestDataFormatForPlotting(unittest.TestCase):
     """Test that plot functions properly handle data."""
 
@@ -359,7 +359,6 @@ class TestMutationWindow(unittest.TestCase):
         mock_fig = MagicMock()
         mock_plt.figure.return_value = mock_fig
         
-<<<<<<< HEAD
         # Mock the drivers properly to avoid comparison issues
         mock_driver1 = Mock()
         mock_driver1._last_mutation_time = 10
@@ -367,23 +366,6 @@ class TestMutationWindow(unittest.TestCase):
         mock_driver2._last_mutation_time = 50
         
         self.simulation.drivers = [mock_driver1, mock_driver2]
-=======
-        # Add required attributes to simulation
-        self.simulation.served_count = 10
-        self.simulation.expired_count = 5
-        self.simulation.time = 100
-        self.simulation.avg_wait = 15.0
-        
-        # Create mock drivers without _last_mutation_time attribute (use spec to prevent auto-creation)
-        mock_drivers = []
-        for i in range(5):
-            driver = Mock(spec=['behaviour', 'id'])
-            driver.behaviour = Mock(spec=['__class__'])
-            driver.behaviour.__class__.__name__ = 'LazyBehaviour'
-            driver.id = i
-            mock_drivers.append(driver)
-        self.simulation.drivers = mock_drivers
->>>>>>> b0e156e9289235f3095796505dd0159791e8bdf1
         
         _show_mutation_window(self.simulation)
         

@@ -1,10 +1,3 @@
-"""
-Unit tests for Phase 1 I/O and Helper modules.
-
-Tests the CSV loading, data parsing, validation, and synthetic data generation
-for the Phase 1 simulation backend.
-"""
-
 import unittest
 import tempfile
 import os

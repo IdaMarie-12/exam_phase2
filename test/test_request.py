@@ -1,6 +1,3 @@
-"""
-Unit tests for the Request class and status transitions.
-"""
 import unittest
 import sys
 import os

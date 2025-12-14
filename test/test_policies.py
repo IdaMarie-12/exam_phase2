@@ -1,6 +1,3 @@
-"""
-Unit tests for DispatchPolicy, NearestNeighborPolicy, and GlobalGreedyPolicy.
-"""
 import unittest
 from unittest.mock import Mock
 import sys
