@@ -189,17 +189,27 @@ This approach yields three major benefits in our system:
 
 The `Point` class encapsulates a 2D location on the delivery grid. This is the simplest component, but it's crucial because distances and movements depend on it. Every Point has `x` and `y` coordinates, and it provides methods for geometric operations.
 
-The fundamental operation is distance calculation. When the system needs to know how far a driver is from a pickup location, it uses Euclidean distance—the straight-line distance in 2D space. The formula is:
+The fundamental operation is **distance calculation**. When the system needs to know how far a driver is from a pickup location, it uses Euclidean distance—the straight-line distance in 2D space computed using the Pythagorean theorem:
 
 $$d = \sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2}$$
 
-This is implemented in the `Point.distance_to(other_point)` method. The Point class also provides vector operations—you can add two points together (`point1 + point2` via `__add__`), subtract them to get direction, or multiply by a scalar to scale. These operations enable movement calculations.
+This formula calculates the hypotenuse of a right triangle formed by the horizontal and vertical differences between two points. So if a driver is at position (5, 10) and a pickup is at (8, 14), the distance is $\sqrt{(8-5)^2 + (14-10)^2} = \sqrt{9 + 16} = \sqrt{25} = 5$ grid units. This is implemented in the `Point.distance_to(other_point)` method. During the assignment phase, every driver-request pairing calculates distance this way to determine offer quality.
 
-A point can move toward a target using the `move_towards(target, step_size)` method. Here's what happens: the Point calculates which direction to go by finding the straight line from current position to target, then normalizing it so the direction vector has unit length (length of 1). This gives us a pure direction without any distance information baked in. Then, we multiply that direction by the step size to get the actual movement: `new position = current position + (direction × step size)`. 
+The Point class also provides vector operations—you can add two points together (`point1 + point2` via `__add__`), subtract them to get direction (which produces a vector representing displacement), or multiply by a scalar to scale magnitudes. These operations enable movement calculations.
 
-Why does this matter? Because it ensures every driver moves at exactly the same speed regardless of how far away they are from their destination. A driver heading across the city moves the same distance per phase as a driver heading just around the corner—each one advances by the same step size (typically 1-2 grid units per tick). Without this normalization, movement would speed up or slow down depending on distance, which would be weird and unrealistic.
+Movement happens through **vector normalization**. A point moves toward a target using the `move_towards(target, step_size)` method. Here's the mathematics: first, calculate the displacement vector from current to target by subtracting positions: $\vec{d} = \text{target} - \text{current}$. This gives raw direction with magnitude equal to the distance. Next, normalize this vector to unit length (exactly 1) by dividing by its magnitude:
 
-The real benefit is that by putting all this geometry logic inside the Point class, every part of the system that needs distance or movement calculations uses the same methods. Stage 7 uses Point's movement when driving. Stage 5 uses Point's distance when calculating offer quality. Stage 4 uses Point's distance comparison when checking if a driver reached their target. Everything goes through Point, so there's one single source of truth for all geometric calculations—no inconsistencies, no bugs from doing the math differently in different places.
+$$\hat{d} = \frac{\vec{d}}{|\vec{d}|} = \frac{\text{target} - \text{current}}{\sqrt{(x_{target} - x_{current})^2 + (y_{target} - y_{current})^2}}$$
+
+This normalized direction vector $\hat{d}$ points the right way but has no distance information—it's purely directional. Finally, scale it by the step size to get actual movement:
+
+$$\text{new position} = \text{current position} + \hat{d} \times \text{step\_size}$$
+
+If step_size is 1.5 grid units per tick and the normalized direction is (0.6, 0.8), the driver moves exactly (0.9, 1.2) units—always the same distance per tick regardless of how far away the destination is.
+
+Why does this matter? Because it ensures every driver moves at exactly the same speed regardless of how far away they are from their destination. A driver heading across the city moves the same distance per phase as a driver heading just around the corner—each one advances by the same step size. Without this normalization, movement would speed up or slow down depending on distance, producing unrealistic acceleration/deceleration effects.
+
+The real benefit is that by putting all this geometry logic inside the Point class, every part of the system that needs distance or movement calculations uses the same methods. Step 7 uses Point's movement when drivers progress toward their destinations. Step 5 uses Point's distance when calculating offer quality to rank which requests are best. Step 4 uses Point's distance comparison when checking if a driver reached their target for pickup or dropoff. Everything goes through Point, so there's one single source of truth for all geometric calculations—no inconsistencies, no bugs from doing the math differently in different places.
 
 #### 3.2.2 Requests: Modeling Delivery Lifecycle
 
@@ -222,19 +232,26 @@ If expired, the request is removed from pending and added to expired_requests. T
 
 A `Driver` object represents a delivery agent. Each driver has a current `position` (a Point), an assigned `strategy` (a BehaviourStrategy object), a list of `earnings` from completed deliveries, and a reference to their `current_request` if they're carrying a delivery.
 
-The driver's position changes during Phase 7. When a driver is idle and claims a request in Phase 5, they set their destination to the pickup location and begin moving. Each tick, `step(current_time)` is called, which uses the Point class's movement logic to advance toward the destination. We use the normalized direction vector described earlier, so movement is uniform regardless of distance.
+The driver's position changes during Step 7 (Move Drivers). When a driver is idle and claims a request in Step 5, they set their destination to the pickup location and begin moving. Each tick, `step(current_time)` is called, which uses the Point class's movement logic to advance toward the destination using the normalized direction vector—so movement is uniform regardless of how far away the target is.
 
-As a driver moves, Phase 7 checks whether they've reached their destination using `is_at_target()`. If they haven't picked up the request yet, reaching the location triggers `mark_picked_up()`, which updates the destination to the dropoff location. If they're already carrying the request, reaching the dropoff completes it via `complete_delivery(current_time)`, which:
+As a driver moves, Step 7 checks whether they've reached their destination using `is_at_target()`. This method calculates the distance between current and target positions and checks if that distance falls below a threshold. If the distance is small enough (within EPSILON tolerance), the driver is considered to have arrived. If they haven't picked up the request yet, reaching the location triggers `mark_picked_up()`, which updates the destination to the dropoff location. If they're already carrying the request, reaching the dropoff completes it via `complete_delivery(current_time)`, which:
 - Marks the request as DELIVERED
-- Records the delivery time
-- Adds earnings to the driver's cumulative total
+- Records the delivery completion time
+- Adds earnings to the driver's cumulative total using the earnings formula
 - Sets the driver back to idle status
 
-The earnings calculation is:
+**Earnings Calculation:** The system rewards drivers with a formula that encourages both fast execution and accepting quick assignments:
 
-$$\text{earnings} = \text{base\_points} + \text{distance\_bonus} - \text{wait\_time\_penalty}$$
+$$\text{earnings} = \text{base\_points} + (\text{pickup\_distance} \times \text{distance\_bonus\_rate}) - (\text{wait\_time} \times \text{wait\_penalty\_rate})$$
 
-Base points reward completing any delivery. Distance bonus rewards longer trips (more effort = more pay). Wait time penalty discourages delays—if a request waited too long before being assigned, the driver earns less. This formula incentivizes both efficiency and quick assignment.
+Where:
+- **base_points** is a fixed reward for any completed delivery (e.g., 50 points)
+- **pickup_distance** is the Euclidean distance from pickup to dropoff location
+- **distance_bonus_rate** multiplies distance (e.g., 2.0 points per grid unit)
+- **wait_time** is how long the request waited before being assigned, in ticks
+- **wait_penalty_rate** subtracts for delay (e.g., 0.5 points per tick waited)
+
+A longer trip earns more distance bonus, incentivizing drivers to accept far-away requests. But if that same request waited a long time before being assigned, the wait penalty reduces the total—this pushes drivers toward quick acceptance. For example, a 10-unit pickup with 20-tick wait would earn: 50 + (10 × 2.0) - (20 × 0.5) = 50 + 20 - 10 = 60 points. The formula balances three competing objectives: complete deliveries (base points), work efficiently (distance bonus), and respond quickly (wait penalty).
 
 The critical insight about drivers is their strategy. Each driver holds a `BehaviourStrategy` object that encapsulates their decision-making. During Phase 5, when a driver becomes idle, the Simulation collects all available requests and creates an `Offer` for each one, containing distance and earnings metrics. Then it calls `driver.decide_action(offers)`, which delegates to `strategy.decide(offers)`. The strategy returns the best offer according to its criteria, and the driver claims it.
 
@@ -248,9 +265,60 @@ This matters because it makes polymorphism safe and explicit. The Simulation and
 
 The same pattern applies to `MutationRule`, another abstract base class used in Phase 8. Drivers can switch strategies dynamically, and `MutationRule` defines the contract for how those switches happen—subclasses like `HybridMutation` implement different adaptation strategies (aggressive adaptation, conservative adaptation, etc.). The Simulation doesn't need to know which mutation rule is active; it just calls `mutation_rule.mutate(drivers)` and trusts the object will do something sensible.
 
-During Phase 8, drivers can adapt. If a driver has been idle too long, they might switch from GreedyDistance to EarningsMax to try higher-paying offers. If they're not earning enough, they might switch back. The `update_strategy(new_strategy)` method swaps the strategy object, allowing drivers to learn and adapt within a single simulation run. The `MutationRule` orchestrates these switches according to its own logic, whether that's aggressive strategy flipping or conservative stability.
+During step 8, drivers can adapt. If a driver has been idle too long, they might switch from GreedyDistance to EarningsMax to try higher-paying offers. If they're not earning enough, they might switch back. The `update_strategy(new_strategy)` method swaps the strategy object, allowing drivers to learn and adapt within a single simulation run. The `MutationRule` orchestrates these switches according to its own logic, whether that's aggressive strategy flipping or conservative stability.
 
-#### 3.2.4 Offers: Packaging Proposals for Comparison
+#### 3.2.4 Error Handling and Type Safety
+
+Every class in the system implements defensive programming by validating inputs at multiple levels. This distributed responsibility for correctness prevents bugs from silently corrupting state.
+
+**Strategy Initialization:** When creating a strategy, the system validates its configuration parameters. `GreedyDistanceBehaviour` checks that `max_distance` is positive:
+
+```python
+if max_distance <= 0:
+    raise ValueError(f"max_distance must be positive, got {max_distance}")
+```
+
+Similarly, `EarningsMaxBehaviour` validates its threshold:
+
+```python
+if min_reward_per_time < 0:
+    raise ValueError(f"min_reward_per_time must be non-negative, got {min_reward_per_time}")
+```
+
+And `LazyBehaviour` validates its idle time parameter. These checks ensure strategies are never created in invalid states.
+
+**Strategy Decision Method:** Every strategy's `decide(driver, offer, time)` method performs type checking immediately:
+
+```python
+if not isinstance(driver, DriverClass):
+    raise TypeError(f"decide() requires Driver, got {type(driver).__name__}")
+if not isinstance(offer, OfferClass):
+    raise TypeError(f"decide() requires Offer, got {type(offer).__name__}")
+if not isinstance(time, int):
+    raise TypeError(f"decide() requires int time, got {type(time).__name__}")
+```
+
+**Why this matters:** Bugs in object-oriented systems often come from passing the wrong type to a method. Without type checking, bad data silently flows through the system—a strategy might receive a dictionary instead of an Offer, attempt to call `.request.pickup` on it, and crash deep in the code where the error is hard to trace back. By validating immediately at the method boundary, we catch the mistake right where it happens, making bugs obvious and fixing them much easier. It's like a security checkpoint: "If you want to use my method, you must provide the right credentials."
+
+**Simulation and Request Initialization:** The Simulation class validates it never starts empty:
+
+```python
+if not drivers:
+    raise ValueError("DeliverySimulation requires at least one driver")
+```
+
+And ensures timeout is positive:
+
+```python
+if timeout < 1:
+    raise ValueError(f"Timeout must be positive, got {timeout}")
+```
+
+Request initialization uses similar checks. These guards at initialization time prevent the system from ever entering a broken state in the first place.
+
+**The Bigger Picture:** Each class enforces its own invariants—the strategy guarantees it has valid parameters, the decision method guarantees it receives valid objects, the Request guarantees it never has negative timeout, the Simulation guarantees it always has at least one driver. This distributed responsibility for correctness means bugs have nowhere to hide. If something goes wrong, the error happens immediately at the boundary where it can be easily traced back to the source.
+
+#### 3.2.5 Offers: Packaging Proposals for Comparison
 
 An `Offer` object is simple but clever. It contains a reference to a driver, a request, the distance from the driver to the pickup, and the projected earnings if the driver takes it. Offers exist temporarily during the assignment phase—they're created fresh each phase when drivers need to make decisions, then discarded.
 
@@ -277,21 +345,23 @@ Before simulation starts, initialization loads drivers from CSV (with positions 
 - **time** — Current simulation tick (integer counter, starts at 0, increments each phase)
 - **metrics** — SimulationTimeSeries object that records snapshots of system state each tick
 
-Once initialized, the simulation runs in a loop. Each call to `tick()` executes nine phases in strict order:
+Once initialized, the simulation runs in a loop. Each call to `tick()` executes nine steps in strict order:
 
-**Phase 1: Advance Time.** The simulation increments its global clock by 1. This single operation ensures all time-dependent logic across all objects stays synchronized. Every request's timeout checks use this same `time`, every driver's strategy decisions can use this time, every metric recorded uses this time. Centralizing the clock in Simulation prevents drift or inconsistency.
+**Step 1: Advance Time.** The simulation increments its global clock by 1. This single operation ensures all time-dependent logic across all objects stays synchronized. Every request's timeout checks use this same `time`, every driver's strategy decisions can use this time, every metric recorded uses this time. Centralizing the clock in Simulation prevents drift or inconsistency.
 
-**Phase 2: Activate Requests.** The system checks if any requests are scheduled to become available. Requests can have an `appearance_time`—perhaps you loaded a CSV with orders scheduled for future hours. This phase checks: for each request where `appearance_time <= current_time`, transition it from a "future" list into `pending_requests`, making it eligible for assignment. This allows realistic request scheduling.
+**Step 2: Activate Requests.** The system checks if any requests are scheduled to become available. Requests can have an `appearance_time`—perhaps you loaded a CSV with orders scheduled for future hours. This phase checks: for each request where `appearance_time <= current_time`, transition it from a "future" list into `pending_requests`, making it eligible for assignment. This allows realistic request scheduling.
 
-**Phase 3: Generate New Requests.** If configured, a `Generator` creates new requests stochastically (randomly). Rather than loading all requests upfront, the simulation can dynamically create them, simulating real-world request arrival where orders stream in continuously.
+**Step 3: Generate New Requests.** If configured, a `Generator` creates new requests stochastically (randomly). Rather than loading all requests upfront, the simulation can dynamically create them, simulating real-world request arrival where orders stream in continuously.
 
-**Phase 4: Handle Timeouts.** For each request in `pending_requests`, the system calls `request.is_expired(current_time, timeout_threshold)`. Requests that exceed their timeout are moved from `pending_requests` to `expired_requests`. This enforces a service level—if a request isn't assigned quickly enough, it's marked as failed and removed from the system. The timeout logic is:
+**Step 4: Handle Timeouts.** For each request in `pending_requests`, the system calls `request.is_expired(current_time, timeout_threshold)`. Requests that exceed their timeout are moved from `pending_requests` to `expired_requests`. This enforces a service level—if a request isn't assigned quickly enough, it's marked as failed and removed from the system.
+
+The timeout logic calculates how long a request has been waiting and checks if it exceeds the limit:
 
 $$\text{age} = \text{current\_time} - \text{appearance\_time}$$
 
-If `age > timeout_threshold` and the request is still WAITING, it expires.
+If age > timeout_threshold **and** the request is still in WAITING state, the request expires. For example, if a request appears at time 0 and the timeout is 50 ticks, it expires at the first time step where current_time > 50 (i.e., at time 51). This calculation is done each step, so requests are checked continuously as time advances.
 
-**Phase 5: Assign Idle Drivers.** For each driver:
+**Step 5: Assign Idle Drivers.** For each driver:
 1. Check `driver.is_idle()`. If False (driver is already carrying a delivery), skip.
 2. If True, the system creates an Offer for every pending request, containing the distance from the driver to the pickup location and estimated earnings. Distance is computed using Point's `distance_to()` method.
 3. Call `driver.decide_action(offers)`, which delegates to the driver's strategy. The strategy's `decide()` method returns the best offer or None.
@@ -299,37 +369,76 @@ If `age > timeout_threshold` and the request is still WAITING, it expires.
 
 At this point, multiple drivers might have claimed the same request—Phase 6 resolves those conflicts.
 
-**Phase 6: Collect Offers and Resolve Conflicts.** The system builds a complete matrix of all possible driver-request pairings, creates Offer objects for each, and then calls a helper function `resolve_conflicts(all_offers)`. This function ranks all offers by quality (distance, earnings, strategy preference) and ensures each request is assigned to exactly one driver. Drivers who lost in conflict remain idle and can try again next phase.
+**Step 6: Collect Offers and Resolve Conflicts.** The system builds a complete matrix of all possible driver-request pairings, creates Offer objects for each, and then calls a helper function `resolve_conflicts(all_offers)`. This function ranks all offers by quality (distance, earnings, strategy preference) and ensures each request is assigned to exactly one driver. Drivers who lost in conflict remain idle and can try again next phase.
 
 Conflict resolution uses the Offer comparison operators internally—offers can be ranked and sorted to determine priority.
 
-**Phase 7: Move Drivers.** For each driver:
+**Step 7: Move Drivers.** For each driver:
 1. If idle, skip (no movement).
 2. If not idle, call `driver.step(current_time)`. This:
    - Gets the driver's current position and destination (both Point objects)
-   - Calculates direction and moves one step closer using Point's movement formula:
-     $$\text{new\_position} = \text{current} + \frac{\text{destination} - \text{current}}{|\text{destination} - \text{current}|} \times \text{step\_size}$$
+   - Uses the normalized movement formula to advance one step closer:
+     $$\text{new\_position} = \text{current} + \frac{\text{destination} - \text{current}}{\sqrt{(x_d - x_c)^2 + (y_d - y_c)^2}} \times \text{step\_size}$$
+     where (current) is $(x_c, y_c)$ and (destination) is $(x_d, y_d)$. This formula first computes the displacement vector, normalizes it to unit length, then scales by step_size to get exact movement.
    - Updates the driver's position
-   - Checks `driver.is_at_target()` (within a distance threshold)
-   - If at target and not yet picked up: calls `driver.mark_picked_up(current_time)`, updating destination to dropoff
+   - Calculates the new distance to destination and checks `driver.is_at_target()` by comparing against EPSILON threshold
+   - If at target and not yet picked up: calls `driver.mark_picked_up(current_time)`, updating destination to dropoff location
    - If at target and already picked up: calls `driver.complete_delivery(current_time)`, which:
      - Transitions the request to DELIVERED state
-     - Records the delivery time
-     - Adds earnings (using the formula: base points + distance bonus - wait penalty)
+     - Records the delivery completion time
+     - Calculates and adds earnings using the formula: base points + (distance × distance_bonus_rate) - (wait_time × wait_penalty_rate)
      - Sets the driver to idle
      - Moves the request to `completed_requests`
 
-The normalized movement ensures uniform speed—whether far or close to destination, each phase advances the driver by the same distance.
+The normalized movement ensures uniform speed—whether far or close to destination, each step advances the driver by exactly step_size grid units. This predictable movement is critical for realistic simulation behavior.
 
-**Phase 8: Update Strategies.** For each driver, examine performance. If `idle_time_count > max_idle_threshold`, the driver might switch to EarningsMax to try higher-paying offers. If `earnings < earnings_threshold`, they might switch back to GreedyDistance. Call `driver.update_strategy(new_strategy)` to swap the strategy object. This adaptive behavior models how drivers learn and adjust.
+**Step 8: Update Strategies.** For each driver, examine performance. If `idle_time_count > max_idle_threshold`, the driver might switch to EarningsMax to try higher-paying offers. If `earnings < earnings_threshold`, they might switch back to GreedyDistance. Call `driver.update_strategy(new_strategy)` to swap the strategy object. This adaptive behavior models how drivers learn and adjust.
 
-**Phase 9: Collect Metrics.** Record the current system state: count of completed requests, count of expired requests, average wait time (calculated from all completed requests), and driver utilization:
+**Step 9: Collect Metrics.** Record the current system state: count of completed requests, count of expired requests, average wait time (calculated from all completed requests), and driver utilization.
 
-$$\text{utilization} = \frac{\text{count of active drivers}}{\text{total drivers}} \times 100\%$$
+**Average Wait Time:** Calculated as the mean of wait times from all delivered requests:
 
-Store this snapshot in `metrics.record_tick(time, ...)`, building a time-series of performance across all ticks.
+$$\text{avg\_wait\_time} = \frac{\sum_{i=1}^{n} (\text{assignment\_time}_i - \text{appearance\_time}_i)}{n}$$
+
+where $n$ is the number of delivered requests. This measures how quickly requests were assigned on average—lower is better.
+
+**Driver Utilization:** Expressed as a percentage of actively working drivers:
+
+$$\text{utilization} = \frac{\text{count of drivers with current_request}}{\text{total drivers}} \times 100\%$$
+
+A utilization of 80% means 4 out of 5 drivers are currently making deliveries, while the fifth is idle waiting for assignment. This metric tracks system efficiency—high utilization means good request distribution, low utilization might indicate not enough requests or poor matching.
+
+Store this snapshot in `metrics.record_tick(time, ...)`, building a time-series of performance across all ticks. At simulation end, these individual tick snapshots are aggregated to produce summary statistics.
 
 After Phase 9 completes, the tick ends. The next external call to `tick()` repeats the sequence. The simulation continues until all requests are served/expired or until a stopping condition is met.
+
+#### 3.3.1 Time Complexity and Numerical Precision
+
+The orchestration is designed for efficiency while understanding inherent computational costs. Each call to `tick()` is **O(D × R)** in time complexity, where D is the number of drivers and R is the number of pending requests.
+
+**Why O(D × R)?** During Step 5 (Assign Idle Drivers) and Step 6 (Resolve Conflicts), the system must evaluate every possible driver-request pairing. If you have 10 drivers and 100 pending requests, the system creates 10 × 100 = 1000 offers, then sorts and ranks them to find optimal assignments. The mathematical expression of this scaling is:
+
+$$\text{Operations per tick} = O(D \times R) + O(R \log R) + O(D \log D)$$
+
+where the dominant term is $D \times R$ (creating all offer objects), plus smaller overhead from sorting requests by offer quality and sorting drivers by assignment priority. For large problems, the $D \times R$ term completely dominates, so we say the complexity is **O(D × R)**.
+
+This is mathematically unavoidable—there's no way to know which driver-request pairings are optimal without comparing all of them. However, this quadratic scaling is acceptable for reasonable problem sizes. A simulation with 50 drivers and 500 requests requires 25,000 comparisons per tick. Running for 1000 ticks means 25 million operations total—modern computers handle this in milliseconds. The system can comfortably scale to hundreds of drivers and thousands of requests, but attempting millions of drivers with millions of requests in real-time would become infeasible.
+
+**Numerical Precision:** The code defines two small constants to handle floating-point arithmetic safely. Floating-point numbers in computers use binary representation with finite precision (typically 64-bit doubles), which means some decimal numbers can't be represented exactly. Repeated calculations can accumulate tiny rounding errors.
+
+**EPSILON (1e-3):** When checking if a driver has reached their destination, the system uses `is_at_target(current, target, threshold)` which compares positions within EPSILON tolerance rather than checking for exact equality. Consider a driver moving toward point (5.0, 5.0). Due to floating-point arithmetic, the driver might reach position (5.0000000001, 5.0000000002) after hundreds of movement steps. A naive exact comparison (`if current == target`) would fail even though the driver is effectively at the destination. By using EPSILON = 0.001, we treat positions as equal if the distance between them is within 0.001 units:
+
+$$\text{is\_at\_target} = \sqrt{(x_{target} - x_{current})^2 + (y_{target} - y_{current})^2} \leq \text{EPSILON}$$
+
+This tolerance is well below the typical 1-2 unit movement step size, avoiding false negatives while remaining meaningfully precise.
+
+**MIN_SPEED (1e-6):** During normalized movement, when a driver is extremely close to their destination, the remaining distance becomes very small. The normalized direction calculation divides by this distance:
+
+$$\hat{d} = \frac{\text{target} - \text{current}}{|\text{target} - \text{current}|}$$
+
+If the distance is, say, 1e-10 (smaller than EPSILON), the driver is considered at target and should stop moving. Without this check, a lingering driver might enter an infinite loop: so close that EPSILON triggers `is_at_target()`, but then the movement code tries to move infinitesimal distances. MIN_SPEED prevents this by ensuring movement steps are never smaller than 1e-6 units—if remaining distance would produce smaller steps, the driver halts instead.
+
+These defensive constants ensure the simulation remains numerically stable across thousands of ticks, preventing accumulation of rounding errors and degenerate movement cases.
 
 ### 3.4 Delegation and Helper Functions
 
