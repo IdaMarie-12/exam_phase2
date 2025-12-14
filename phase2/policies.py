@@ -14,9 +14,7 @@ if TYPE_CHECKING:
 
 class DispatchPolicy:
     """Abstract base class for dispatch policies.
-    
     Determines which idle drivers should be offered which waiting requests.
-    Subclasses: NearestNeighborPolicy (greedy), GlobalGreedyPolicy (sorted).
     """
 
     def assign(self,
@@ -24,10 +22,6 @@ class DispatchPolicy:
                 requests: List["Request"],
                 time: int
             ) -> List[Tuple["Driver", "Request"]]:
-        """Propose driver-request pairs for this tick.
-        
-        Returns list of (driver, request) tuples. Each driver appears at most once.
-        """
         raise NotImplementedError
 
 
@@ -37,11 +31,8 @@ class DispatchPolicy:
 # ====================================================================
 
 class NearestNeighborPolicy(DispatchPolicy):
-    """Greedy nearest-neighbor dispatch policy.
-    
-    Iteratively finds closest idle driver-request pair, assigns it, and repeats.
-    Simple O(n²m²) but fast for small fleets.
-    """
+    """Iteratively finds closest idle driver-request pair, assigns it, and repeats.
+    Simple O(n²m²) but fast for small fleets."""
 
     def assign(
             self,
@@ -49,10 +40,7 @@ class NearestNeighborPolicy(DispatchPolicy):
             requests: List["Request"],
             time: int
         ) -> List[Tuple["Driver", "Request"]]:
-        """Propose pairs using iterative greedy nearest-neighbor matching.
-        
-        Returns list of (driver, request) pairs sorted by assignment order.
-        """
+        """Propose pairs using iterative greedy nearest-neighbor matching."""
         # Filter only idle drivers and waiting requests
         idle = [d for d in drivers if d.status == IDLE]
         waiting = [r for r in requests if r.status == WAITING]
@@ -92,7 +80,6 @@ class NearestNeighborPolicy(DispatchPolicy):
 
 class GlobalGreedyPolicy(DispatchPolicy):
     """Global greedy dispatch policy with distance-based optimization.
-    
     Computes all driver-request distances, sorts by distance, then greedily
     selects shortest pairs. O(nm log(nm)), better quality than nearest-neighbor.
     """
@@ -103,10 +90,7 @@ class GlobalGreedyPolicy(DispatchPolicy):
         requests: List["Request"],
         time: int
     ) -> List[Tuple["Driver", "Request"]]:
-        """Propose pairs using global greedy distance-based matching.
-        
-        Returns list of (driver, request) pairs sorted by distance.
-        """
+        """Propose pairs using global greedy distance-based matching."""
         # Filter idle drivers and waiting requests
         idle = [d for d in drivers if d.status == IDLE]
         waiting = [r for r in requests if r.status == WAITING]

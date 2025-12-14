@@ -1,7 +1,5 @@
-"""Delivery simulation engine with 9-phase orchestration: generate, expire, propose, collect, resolve, assign, move, mutate, time. O(D*R)."""
-
-from collections import defaultdict #for earnings tracking
-from .offer import Offer ## to avoid circular imports
+from collections import defaultdict
+from .offer import Offer
 from .helpers_2.engine_helpers import (
     gen_requests, expire_requests, get_proposals, collect_offers,
     resolve_conflicts, assign_requests, move_drivers,
@@ -13,10 +11,10 @@ MIN_SPEED = 1e-6
 
 
 class DeliverySimulation:
-    """Complete delivery simulation orchestrator with persistent state, policy-driven dispatch, 10 tracking attributes. O(D*R) per tick."""
+    """Main delivery simulation orchestrator with persistent state and policy-driven dispatch."""
 
     def __init__(self, drivers, dispatch_policy, request_generator, mutation_rule, timeout=20):
-        """Initialize simulation with drivers, policy, generator, mutation rule, timeout. Validates non-empty drivers."""
+        """Initialize with drivers, policy, generator, mutation rule, and timeout."""
         if not drivers:
             raise ValueError("DeliverySimulation requires at least one driver")
         if timeout < 1:
@@ -37,11 +35,12 @@ class DeliverySimulation:
         self.avg_wait = 0.0
         self.earnings_by_behaviour = defaultdict(list)
 
+
     # ================================================================
     # MAIN TICK (9-phase orchestration)
 
     def tick(self):
-        """Execute 9-phase step: gen, expire, propose, collect, resolve, assign, move, mutate, increment. O(D*R)."""
+        """Run one simulation tick (9 phases): generate, expire, propose, collect, resolve, assign, move, mutate, increment time."""
         # Phase 1: Generate new requests via stochastic process
         gen_requests(self)
         # Phase 2: Expire old requests (age >= timeout)
@@ -61,11 +60,12 @@ class DeliverySimulation:
         # Phase 9: Increment global time
         self.time += 1
 
+
     # ================================================================
     # Statistics and Snapshots
 
     def get_snapshot(self):
-        """Return JSON-serializable snapshot: time, drivers, pickups, dropoffs, statistics. O(D+R)."""
+        """Return a JSON-serializable snapshot."""
         return {
             "time": self.time,
             "drivers": [

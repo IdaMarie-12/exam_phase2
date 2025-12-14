@@ -1,8 +1,3 @@
-"""
-Unit tests for Offer class.
-Tests offer creation, metrics calculation, and serialization.
-"""
-
 import unittest
 from datetime import datetime
 from phase2.offer import Offer

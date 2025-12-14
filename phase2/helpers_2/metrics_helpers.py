@@ -1,12 +1,3 @@
-"""Time-series metrics tracking for post-simulation analysis.
-
-Provides:
-- SimulationTimeSeries: Tracks 9 metrics per tick
-- Helper functions: Behaviour distribution, summary statistics
-- Formatting functions: Text formatting for visualization displays
-- PLOT_COLOURS: Consistent colour palette
-"""
-
 from collections import defaultdict, Counter
 
 
@@ -15,12 +6,7 @@ PLOT_COLOURS = ['#FF9999', '#66B2FF', '#99FF99', '#FFD700', '#FF99FF', '#99FFFF'
 
 
 def get_behaviour_distribution(simulation) -> dict:
-    """
-    Get current behaviour distribution across all drivers.
-    
-    Returns:
-        dict: {behaviour_type: count, ...}
-    """
+    """Get current behaviour distribution across all drivers."""
     counts = Counter()
     for driver in simulation.drivers:
         behaviour_type = driver.behaviour.__class__.__name__
@@ -29,13 +15,7 @@ def get_behaviour_distribution(simulation) -> dict:
 
 
 def get_simulation_summary(simulation) -> dict:
-    """
-    Get static summary statistics from simulation state.
-    
-    Returns:
-        dict with keys: total_time, total_requests, final_served, final_expired,
-                       service_level, final_avg_wait
-    """
+    """Get static summary statistics from simulation state."""
     total = simulation.served_count + simulation.expired_count
     return {
         'total_time': simulation.time,
@@ -48,7 +28,7 @@ def get_simulation_summary(simulation) -> dict:
 
 
 class SimulationTimeSeries:
-    """Records simulation metrics at each timestep. Call record_tick() after each tick."""
+    """Records simulation metrics at each timestep. Call record_tick after each tick."""
     
     def __init__(self):
         self.times = []
@@ -68,11 +48,7 @@ class SimulationTimeSeries:
         self._total_mutations = 0       # Cumulative mutation counter
     
     def record_tick(self, simulation):
-        """Capture current simulation state including behaviour changes.
-        
-        Raises:
-            AttributeError: If simulation missing required attributes.
-        """
+        """Capture current simulation state including behaviour changes."""
         # Validate simulation has all required attributes
         required_attrs = ['time', 'served_count', 'expired_count', 'avg_wait', 'requests', 'drivers']
         for attr in required_attrs:
@@ -87,8 +63,6 @@ class SimulationTimeSeries:
         self.expired.append(simulation.expired_count)
         self.avg_wait.append(simulation.avg_wait)
         
-        # Count pending requests (active: not yet complete)
-        # Includes WAITING (unassigned), ASSIGNED (assigned, unpicked), PICKED (in transit)
         try:
             pending_count = len([r for r in simulation.requests 
                                 if r.status in ('WAITING', 'ASSIGNED', 'PICKED')])
@@ -113,15 +87,10 @@ class SimulationTimeSeries:
                 )
         self.utilization.append(utilization)
         
-        # Track behaviour changes
         self._track_behaviour_changes(simulation)
     
     def _track_behaviour_changes(self, simulation):
-        """Track driver behaviour mutations and stagnation.
-        
-        Raises:
-            RuntimeError: If drivers missing expected attributes.
-        """
+        """Track driver behaviour mutations and stagnation."""
         # Get current behaviour snapshot
         try:
             current_behaviours = {
@@ -201,15 +170,7 @@ class SimulationTimeSeries:
 # ====================================================================
 
 def format_summary_statistics(simulation, time_series) -> str:
-    """Format final simulation summary statistics as text block.
-    
-    Args:
-        simulation: Completed DeliverySimulation instance
-        time_series: Optional SimulationTimeSeries (uses static summary if None)
-    
-    Returns:
-        Formatted text string for display
-    """
+    """Format final simulation summary statistics as text block."""
     # Get final summary
     if time_series:
         summary = time_series.get_final_summary()
@@ -240,15 +201,7 @@ Total Requests:        {len(simulation.requests)}
 
 
 def format_behaviour_statistics(simulation, time_series) -> str:
-    """Format behaviour distribution statistics as text block.
-    
-    Args:
-        simulation: Completed DeliverySimulation instance
-        time_series: Optional SimulationTimeSeries
-    
-    Returns:
-        Formatted text string for display
-    """
+    """Format behaviour distribution statistics as text block."""
     behaviour_counts = get_behaviour_distribution(simulation)
     total_drivers = len(simulation.drivers)
     
@@ -271,14 +224,7 @@ def format_behaviour_statistics(simulation, time_series) -> str:
 
 
 def format_impact_metrics(simulation) -> str:
-    """Format performance impact metrics as text block.
-    
-    Args:
-        simulation: Completed DeliverySimulation instance
-    
-    Returns:
-        Formatted text string for display
-    """
+    """Format performance impact metrics as text block."""
     total_requests = simulation.served_count + simulation.expired_count
     service_level = (simulation.served_count / total_requests * 100) if total_requests > 0 else 0
     
@@ -300,14 +246,7 @@ def format_impact_metrics(simulation) -> str:
 
 
 def format_mutation_rule_info(simulation) -> str:
-    """Format mutation rule configuration and history as text block.
-    
-    Args:
-        simulation: Completed DeliverySimulation instance
-    
-    Returns:
-        Formatted text string for display
-    """
+    """Format mutation rule configuration and history as text block."""
     if not hasattr(simulation, 'mutation_rule') or simulation.mutation_rule is None:
         return "No mutation rule configured"
     

@@ -76,7 +76,6 @@ class Driver:
 
     def complete_pickup(self, time: int) -> None:
         """Mark pickup complete and transition to TO_DROPOFF state."""
-
         if not self.current_request:
             return
 
