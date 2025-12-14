@@ -81,8 +81,10 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
         timeout=timeout,
     )
     
-    # Pre-add loaded requests to the simulation
-    _simulation.requests.extend(requests)
+    # Store pre-loaded CSV requests for time-based injection
+    # They will be added during gen_requests() as their creation_time arrives
+    _simulation._all_csv_requests = requests
+    _simulation._csv_requests_index = 0  # Track which CSV requests have been added
     
     # Initialize time-series tracking for post-simulation reporting
     global _time_series

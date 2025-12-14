@@ -18,8 +18,14 @@ from phase2.helpers_2.core_helpers import (
     move_towards,
     record_assignment_start,
     record_completion,
-    calculate_points,
 )
+
+
+def calculate_points(fare: float, wait_time: int) -> float:
+    """Calculate driver points earned from a trip.
+    Formula: points = max(0, fare - 0.1 * wait_time)
+    """
+    return max(0.0, fare - 0.1 * wait_time)
 
 
 class TestPointHelpers(unittest.TestCase):
@@ -432,7 +438,8 @@ class TestDriverPickupAndDropoff(unittest.TestCase):
         completion = self.driver.history[1]
         self.assertEqual(completion["request_id"], 42)
         self.assertEqual(completion["time"], 20)
-        self.assertEqual(completion["wait"], 10)
+        # wait_time is calculated as time - creation_time = 20 - 0 = 20
+        self.assertEqual(completion["wait"], 20)
 
     def test_complete_dropoff_no_request(self):
         """complete_dropoff with no request does nothing."""

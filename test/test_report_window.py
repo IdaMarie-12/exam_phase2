@@ -12,7 +12,138 @@ from phase2.simulation import DeliverySimulation
 from phase2.behaviours import LazyBehaviour
 from phase2.helpers_2.metrics_helpers import SimulationTimeSeries
 
+class TestStaticSummary(unittest.TestCase):
+    """Test _get_static_summary function."""
 
+    def setUp(self):
+        """Create mock simulation for testing."""
+        self.simulation = Mock(spec=DeliverySimulation)
+        self.simulation.served_count = 50
+        self.simulation.expired_count = 10
+        self.simulation.time = 1000
+        self.simulation.avg_wait = 25.5
+
+    def test_static_summary_all_fields(self):
+        """Summary contains all required fields."""
+        summary = _get_static_summary(self.simulation)
+        
+        required_fields = [
+            'total_time', 'total_requests', 'final_served',
+            'final_expired', 'service_level', 'final_avg_wait'
+        ]
+        for field in required_fields:
+            self.assertIn(field, summary)
+
+    def test_static_summary_total_requests(self):
+        """Total requests = served + expired."""
+        self.simulation.served_count = 50
+        self.simulation.expired_count = 10
+        summary = _get_static_summary(self.simulation)
+        self.assertEqual(summary['total_requests'], 60)
+
+    def test_static_summary_service_level(self):
+        """Service level correctly calculated."""
+        self.simulation.served_count = 50
+        self.simulation.expired_count = 50
+        summary = _get_static_summary(self.simulation)
+        self.assertAlmostEqual(summary['service_level'], 50.0)
+
+    def test_static_summary_service_level_all_served(self):
+        """Service level 100% when all requests served."""
+        self.simulation.served_count = 100
+        self.simulation.expired_count = 0
+        summary = _get_static_summary(self.simulation)
+        self.assertAlmostEqual(summary['service_level'], 100.0)
+
+    def test_static_summary_service_level_none_served(self):
+        """Service level 0% when no requests served."""
+        self.simulation.served_count = 0
+        self.simulation.expired_count = 100
+        summary = _get_static_summary(self.simulation)
+        self.assertAlmostEqual(summary['service_level'], 0.0)
+
+    def test_static_summary_no_requests(self):
+        """Service level 0 when no requests."""
+        self.simulation.served_count = 0
+        self.simulation.expired_count = 0
+        summary = _get_static_summary(self.simulation)
+        self.assertEqual(summary['service_level'], 0.0)
+        self.assertEqual(summary['total_requests'], 0)
+
+    def test_static_summary_time(self):
+        """Summary includes simulation time."""
+        self.simulation.time = 2500
+        summary = _get_static_summary(self.simulation)
+        self.assertEqual(summary['total_time'], 2500)
+
+    def test_static_summary_avg_wait(self):
+        """Summary includes average wait time."""
+        self.simulation.avg_wait = 42.3
+        summary = _get_static_summary(self.simulation)
+        self.assertAlmostEqual(summary['final_avg_wait'], 42.3)
+
+
+class TestGenerateReportMatplotlibCheck(unittest.TestCase):
+    """Test generate_report matplotlib availability checking."""
+
+    def setUp(self):
+        """Create mock simulation."""
+        self.simulation = Mock(spec=DeliverySimulation)
+        self.simulation.drivers = []
+        self.simulation.requests = []
+
+    @patch('phase2.report_window.HAS_MATPLOTLIB', False)
+    def test_generate_report_no_matplotlib_raises(self):
+        """generate_report raises RuntimeError if matplotlib not available."""
+        with self.assertRaises(RuntimeError) as context:
+            generate_report(self.simulation)
+        self.assertIn("matplotlib", str(context.exception))
+
+    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
+    @patch('phase2.report_window._show_mutation_window')
+    @patch('phase2.report_window._show_behaviour_window')
+    @patch('phase2.report_window.plt')
+    def test_generate_report_with_matplotlib_creates_figure(self, mock_plt, mock_behaviour, mock_mutation):
+        """generate_report creates figure when matplotlib available."""
+        mock_fig = MagicMock()
+        mock_plt.figure.return_value = mock_fig
+        
+        self.simulation.served_count = 10
+        self.simulation.expired_count = 5
+        self.simulation.time = 100
+        self.simulation.avg_wait = 15.0
+        self.simulation.mutation = Mock()
+        self.simulation.mutation.mutation_history = []
+        self.simulation.mutation.mutation_transitions = {}
+        
+        generate_report(self.simulation, time_series=None)
+        
+        # Should attempt to create figure
+        mock_plt.figure.assert_called()
+
+
+class TestQuickReport(unittest.TestCase):
+    """Test quick_report convenience function."""
+
+    @patch('phase2.report_window.generate_report')
+    def test_quick_report_calls_generate_report(self, mock_generate):
+        """quick_report calls generate_report with same arguments."""
+        sim = Mock(spec=DeliverySimulation)
+        time_series = Mock(spec=SimulationTimeSeries)
+        
+        quick_report(sim, time_series)
+        
+        mock_generate.assert_called_once_with(sim, time_series)
+
+    @patch('phase2.report_window.generate_report')
+    def test_quick_report_without_time_series(self, mock_generate):
+        """quick_report handles None time_series."""
+        sim = Mock(spec=DeliverySimulation)
+        
+        quick_report(sim)
+        
+        mock_generate.assert_called_once_with(sim, None)
+>>>>>>> b0e156e9289235f3095796505dd0159791e8bdf1
 class TestDataFormatForPlotting(unittest.TestCase):
     """Test that plot functions properly handle data."""
 
@@ -190,6 +321,12 @@ class TestMutationWindow(unittest.TestCase):
     def setUp(self):
         """Create mock simulation with mutation rule."""
         self.simulation = Mock(spec=DeliverySimulation)
+        self.simulation.drivers = [Mock() for _ in range(3)]
+        self.simulation.requests = [Mock() for _ in range(100)]
+        self.simulation.served_count = 80
+        self.simulation.expired_count = 20
+        self.simulation.time = 500
+        self.simulation.avg_wait = 20.0
         self.simulation.mutation = Mock()
         self.simulation.mutation.mutation_history = [
             {
@@ -222,6 +359,15 @@ class TestMutationWindow(unittest.TestCase):
         mock_fig = MagicMock()
         mock_plt.figure.return_value = mock_fig
         
+<<<<<<< HEAD
+        # Mock the drivers properly to avoid comparison issues
+        mock_driver1 = Mock()
+        mock_driver1._last_mutation_time = 10
+        mock_driver2 = Mock()
+        mock_driver2._last_mutation_time = 50
+        
+        self.simulation.drivers = [mock_driver1, mock_driver2]
+=======
         # Add required attributes to simulation
         self.simulation.served_count = 10
         self.simulation.expired_count = 5
@@ -237,6 +383,7 @@ class TestMutationWindow(unittest.TestCase):
             driver.id = i
             mock_drivers.append(driver)
         self.simulation.drivers = mock_drivers
+>>>>>>> b0e156e9289235f3095796505dd0159791e8bdf1
         
         _show_mutation_window(self.simulation)
         
