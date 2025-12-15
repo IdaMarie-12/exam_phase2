@@ -53,6 +53,7 @@ class SimulationTimeSeries:
         self.policy_names = set()          # Set of all unique policy names used
         self.policy_distribution = []      # List of dicts tracking drivers per policy per tick
         self.avg_offer_quality = []        # Average reward/time ratio per tick
+        self.actual_policy_used = []       # Track which actual policy was used per tick (for Adaptive breakdown)
         
         # Request queue dynamics
         self.pending_requests = []         # Number of waiting requests per tick
@@ -262,6 +263,10 @@ class SimulationTimeSeries:
         # Track offers generated
         self.offers_generated.append(len(current_tick_offers))
         
+        # Detect actual policy used (for AdaptiveHybridPolicy breakdown)
+        actual_policy = self._detect_actual_policy(simulation, current_tick_offers)
+        self.actual_policy_used.append(actual_policy)
+        
         # Track offer quality distribution and calculate average
         quality_list = []
         total_quality = 0.0
@@ -380,6 +385,29 @@ class SimulationTimeSeries:
         ratio = (simulation.served_count / total * 100.0) if total > 0 else 0.0
         self.served_to_expired_ratio.append(ratio)
     
+    def _detect_actual_policy(self, simulation, offers) -> str:
+        """Detect which actual policy was used (detects if Adaptive used NN or GG)."""
+        if not hasattr(simulation, 'dispatch_policy'):
+            return 'Unknown'
+        
+        policy_name = type(simulation.dispatch_policy).__name__
+        
+        # If not Adaptive, return the policy name as-is
+        if policy_name != 'AdaptiveHybridPolicy':
+            return policy_name
+        
+        # For Adaptive, detect which sub-policy was used based on driver/request ratio
+        idle_drivers = sum(1 for d in simulation.drivers if getattr(d, 'status', None) == 'IDLE')
+        waiting_requests = len([r for r in simulation.requests if getattr(r, 'status', None) == 'WAITING'])
+        
+        # AdaptiveHybridPolicy uses: 
+        # - GlobalGreedyPolicy if requests > drivers
+        # - NearestNeighborPolicy if drivers >= requests
+        if waiting_requests > idle_drivers:
+            return 'GlobalGreedyPolicy'
+        else:
+            return 'NearestNeighborPolicy'
+    
     def get_data(self):
         """Return all time-series data as dict."""
         return {
@@ -397,6 +425,7 @@ class SimulationTimeSeries:
             'offer_acceptance_rate': self.offer_acceptance_rate,
             'policy_distribution': self.policy_distribution,
             'avg_offer_quality': self.avg_offer_quality,
+            'actual_policy_used': self.actual_policy_used,
             'pending_requests': self.pending_requests,
             'rejection_rate': self.rejection_rate,
             'max_request_age': self.max_request_age,
@@ -439,6 +468,9 @@ class SimulationTimeSeries:
         total_generated = sum(self.request_generation_rate) if self.request_generation_rate else 0
         avg_expiration_rate = sum(self.expiration_rate) / len(self.expiration_rate) if self.expiration_rate else 0.0
         
+        # Calculate actual policy usage (for Adaptive breakdown)
+        policy_usage = Counter(self.actual_policy_used)
+        
         return {
             'total_time': self.times[-1],
             'final_served': self.served[-1],
@@ -456,6 +488,7 @@ class SimulationTimeSeries:
             'avg_offer_quality': avg_offer_quality,
             'avg_acceptance_rate': avg_acceptance_rate,
             'policies_used': list(self.policy_names),
+            'actual_policy_usage': dict(policy_usage),  # Shows NN vs GG breakdown if Adaptive
             'avg_pending_requests': avg_pending_requests,
             'avg_rejection_rate': avg_rejection_rate,
             'max_request_age': max_request_age_final,
