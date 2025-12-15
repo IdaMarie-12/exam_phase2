@@ -1,3 +1,6 @@
+"""Driver behaviour strategies for offer acceptance decisions.
+Implements three behaviour classes: GreedyDistanceBehaviour, EarningsMaxBehaviour, and LazyBehaviour.
+Each defines accept/reject logic based on distance, earnings efficiency, or idle time constraints."""
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -59,7 +62,7 @@ class EarningsMaxBehaviour(DriverBehaviour):
         self.threshold = min_reward_per_time
 
     def decide(self, driver: "Driver", offer: "Offer", time: int) -> bool:
-        """Accept if reward/travel_time >= threshold."""
+        """Accept if reward per time unit meets earnings threshold."""
         from .driver import Driver as DriverClass
         from .offer import Offer as OfferClass
         

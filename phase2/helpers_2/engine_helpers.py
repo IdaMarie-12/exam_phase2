@@ -106,8 +106,14 @@ def get_plot_data_from_state(state: dict):
 # SIMULATION HELPER METHODS (from DeliverySimulation class)
 # ====================================================================
 
+"""Simulation orchestration helpers for the 9-phase delivery tick cycle.
+Implements request generation, expiration, proposal dispatch, offer collection, conflict resolution,
+assignment, driver movement, and behaviour mutation across all drivers and requests.
+"""
+
+
 def gen_requests(simulation):
-    """Generate new requests via request_generator.maybe_generate(), and inject pre-loaded CSV requests. O(R)."""
+    """Generates new requests from generator and CSV sources, injecting on schedule."""
     # First, check if there are pre-loaded CSV requests waiting to arrive
     if hasattr(simulation, '_all_csv_requests') and hasattr(simulation, '_csv_requests_index'):
         csv_idx = simulation._csv_requests_index
@@ -129,7 +135,7 @@ def gen_requests(simulation):
 
 
 def expire_requests(simulation):
-    """Mark WAITING requests as EXPIRED if age >= timeout. Increment expired_count. O(R)."""
+    """Marks waiting requests as expired if they exceed the timeout."""
     for r in simulation.requests:
         if r.status == WAITING and (simulation.time - r.creation_time) >= simulation.timeout:
             r.mark_expired(simulation.time)
@@ -137,12 +143,12 @@ def expire_requests(simulation):
 
 
 def get_proposals(simulation):
-    """Get driver-request pairs from dispatch_policy.assign(). O(D*R)."""
+    """Retrieves dispatch policy recommendations for driver-request pairings."""
     return simulation.dispatch_policy.assign(simulation.drivers, simulation.requests, simulation.time)
 
 
 def collect_offers(simulation, proposals):
-    """Convert proposals to offers, apply behaviour.decide() logic. O(P)."""
+    """Converts proposals to offers and filters via driver behaviour logic."""
     if not isinstance(proposals, list):
         raise TypeError(f"proposals must be list, got {type(proposals).__name__}")
     
@@ -167,7 +173,7 @@ def collect_offers(simulation, proposals):
 
 
 def resolve_conflicts(simulation, offers):
-    """Group offers by request, keep only closest driver per request (by distance). O(O*log O)."""
+    """Resolves conflicts by selecting the closest driver per request."""
     if not isinstance(offers, list):
         raise TypeError(f"offers must be list, got {type(offers).__name__}")
     
@@ -184,14 +190,14 @@ def resolve_conflicts(simulation, offers):
 
 
 def assign_requests(simulation, final):
-    """Assign drivers to requests (if WAITING + IDLE). Call driver.assign_request(). O(A)."""
+    """Assigns resolved offers to idle drivers."""
     for o in final:
         if o.request.status == WAITING and o.driver.status == "IDLE":
             o.driver.assign_request(o.request, simulation.time)
 
 
 def move_drivers(simulation):
-    """Move active drivers toward target. Detect arrivals (distance < EPSILON). O(D)."""
+    """Advances active drivers toward targets and handles arrivals."""
     EPSILON = 1e-3
     
     for d in simulation.drivers:
@@ -208,12 +214,12 @@ def move_drivers(simulation):
 
 
 def handle_pickup(simulation, driver):
-    """Mark request as picked up. Call driver.complete_pickup(). O(1)."""
+    """Completes the pickup phase and transitions to dropoff."""
     driver.complete_pickup(simulation.time)
 
 
 def handle_dropoff(simulation, driver):
-    """Complete delivery. Record earnings & wait time. Increment served_count. O(1)."""
+    """Completes delivery and records metrics."""
     driver.complete_dropoff(simulation.time)
     last = driver.history[-1]
     beh = type(driver.behaviour).__name__ if driver.behaviour else "None"
@@ -226,7 +232,7 @@ def handle_dropoff(simulation, driver):
 
 
 def mutate_drivers(simulation):
-    """Apply mutation_rule.maybe_mutate() to each driver. O(D)."""
+    """Applies mutation rule to each driver for behaviour adaptation."""
     if simulation.mutation_rule is not None and not hasattr(simulation.mutation_rule, 'maybe_mutate'):
         raise TypeError(f"mutation_rule must have maybe_mutate() method, got {type(simulation.mutation_rule).__name__}")
     
