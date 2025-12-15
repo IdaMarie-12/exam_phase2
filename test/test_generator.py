@@ -37,9 +37,6 @@ class TestGeneratePoisson(unittest.TestCase):
     @patch('phase2.generator.random.random')
     def test_with_mocked_random(self, mock_random):
         """Test Poisson with controlled random values."""
-        # For rate=1: L=e^(-1)≈0.368
-        # Loop: k=0, p=1.0 > L -> k=1, p=1*0.5=0.5 > L -> k=2, p=0.5*0.1=0.05 < L
-        # Return k-1 = 1
         mock_random.side_effect = [0.5, 0.1]
         result = _generate_poisson(1.0)
         self.assertEqual(result, 1)

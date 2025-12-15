@@ -7,9 +7,6 @@ if TYPE_CHECKING:
     from phase2.driver import Driver
     from phase2.request import Request
 
-# Prevent division by zero for stationary drivers
-MIN_SPEED = 1e-6
-
 
 # ====================================================================
 # Dispatch Policy Base Class
@@ -34,9 +31,7 @@ class DispatchPolicy:
 # ====================================================================
 
 class NearestNeighborPolicy(DispatchPolicy):
-    """Iteratively finds closest idle driver-request pair, assigns it, and repeats.
-    Simple O(n²m²) but fast for small fleets."""
-
+    """Iteratively finds closest idle driver-request pair, assigns it, and repeats."""
     def assign(
             self,
             drivers: List["Driver"],
@@ -52,8 +47,8 @@ class NearestNeighborPolicy(DispatchPolicy):
 
         # Greedy iterative nearest matching by distance
         while idle and waiting:
-            best_dist = float("inf")  # Initialize best distance as infinity
-            best_pair = None           # Initialize best pair as None
+            best_dist = float("inf") 
+            best_pair = None        
 
             # Find the driver-request pair with shortest distance
             for d in idle:
@@ -84,9 +79,7 @@ class NearestNeighborPolicy(DispatchPolicy):
 class GlobalGreedyPolicy(DispatchPolicy):
     """Global greedy dispatch policy with distance-based optimization.
     Computes all driver-request distances, sorts by distance,
-    then greedily selects closest pairs. O(nm log(nm)), better quality than nearest-neighbor.
-    """
-
+    then greedily selects closest pairs."""
     def assign(
         self,
         drivers: List["Driver"],
@@ -132,15 +125,9 @@ class GlobalGreedyPolicy(DispatchPolicy):
 
 class AdaptiveHybridPolicy(DispatchPolicy):
     """Intelligent hybrid dispatch that adapts based on driver-request ratio.
-    
-    Simple binary strategy:
-    - When requests > drivers: Use GlobalGreedy (optimize utilization of limited drivers)
-    - When drivers >= requests: Use NearestNeighbor (fast/responsive with abundant drivers)
-    
-    Both policies are actively used depending on operational load conditions.
-    Both use distance as the primary matching criterion.
-    """
-
+    Strategy:
+    - When requests > drivers: Use GlobalGreedy
+    - When drivers >= requests: Use NearestNeighbor"""
     def assign(
         self,
         drivers: List["Driver"],
@@ -148,7 +135,6 @@ class AdaptiveHybridPolicy(DispatchPolicy):
         time: int
     ) -> List[Tuple["Driver", "Request"]]:
         """Assign drivers to requests with binary strategy based on load balance.
-        
         Selects between GlobalGreedy (optimize scarce resources) and 
         NearestNeighbor (fast with abundant drivers) based on current ratio.
         """
@@ -159,7 +145,7 @@ class AdaptiveHybridPolicy(DispatchPolicy):
         if not idle or not waiting:
             return []
 
-        # Binary decision: more requests than drivers?
+        # Strategy selection based on request-driver ratio
         if len(waiting) > len(idle):
             # More requests than drivers: Use GlobalGreedy for resource optimization
             return GlobalGreedyPolicy().assign(idle, waiting, time)
