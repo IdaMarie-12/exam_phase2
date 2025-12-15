@@ -41,6 +41,7 @@ class SimulationTimeSeries:
         # Behaviour tracking
         self.behaviour_distribution = []  # List of dicts tracking behaviour counts
         self.mutation_rate = []            # Mutations per 10 ticks (stability indicator)
+        self.mutations_per_tick = []       # Actual mutations this tick (not smoothed)
         self.stable_ratio = []             # Ratio of stable drivers (no recent change)
         
         # Mutation root cause tracking
@@ -196,11 +197,15 @@ class SimulationTimeSeries:
         # Store last 10 tick mutations and calculate rate
         self._mutations_last_10_ticks += mutations_this_tick
         if len(self.mutation_rate) >= 10:
-            # Remove oldest mutation count
+            # Remove oldest mutation count from the rolling window
             oldest_idx = len(self.mutation_rate) - 10
             if oldest_idx >= 0 and oldest_idx < len(self.mutation_rate):
+                # Rebuild from actual last 10 values
                 self._mutations_last_10_ticks = sum(self.mutation_rate[-10:])
         
+        # Calculate effective mutation rate: 
+        # mutations_this_tick / 10 gives rate per tick, then *10 for 10-tick window
+        # This shows the sustainable mutation rate accounting for cooldowns
         mutation_rate = self._mutations_last_10_ticks / 10.0  # Average per tick over last 10
         
         # Track mutation reasons from mutation rule
@@ -209,6 +214,7 @@ class SimulationTimeSeries:
         # Record metrics
         self.behaviour_distribution.append(dict(behaviour_counts))
         self.mutation_rate.append(mutation_rate)
+        self.mutations_per_tick.append(mutations_this_tick)  # Track actual mutations this tick
         self.stable_ratio.append(stable_ratio)
         self.mutation_reasons.append(self._mutation_reason_counts.copy())
         
@@ -419,6 +425,7 @@ class SimulationTimeSeries:
             'utilization': self.utilization,
             'behaviour_distribution': self.behaviour_distribution,
             'mutation_rate': self.mutation_rate,
+            'mutations_per_tick': self.mutations_per_tick,
             'stable_ratio': self.stable_ratio,
             'mutation_reasons': self.mutation_reasons,
             'offers_generated': self.offers_generated,

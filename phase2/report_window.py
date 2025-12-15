@@ -369,15 +369,31 @@ def _plot_mutation_reasons_pie(ax, time_series: Optional[SimulationTimeSeries]) 
 
 
 def _plot_mutation_rate_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot mutation rate (mutations per 10 ticks) over time."""
+    """Plot actual mutations per tick vs smoothed mutation rate trend."""
     if time_series is None or not time_series.times or not time_series.mutation_rate:
         ax.text(0.5, 0.5, 'No mutation rate data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Mutation Rate')
+        ax.set_title('Mutation Activity')
         return
     
-    _plot_time_series(ax, time_series.times, time_series.mutation_rate, 'Mutation Rate',
-                     'red', 'Mutation Rate Over Time', 'Mutations per Tick', fill=True)
+    # Plot actual mutations per tick as bars (shows spikes and cooldown pattern)
+    ax.bar(time_series.times, time_series.mutations_per_tick, width=0.8, alpha=0.4, 
+           color='red', label='Actual Mutations/Tick')
+    
+    # Overlay smoothed mutation rate as line (trend over 10-tick window)
+    ax.plot(time_series.times, time_series.mutation_rate, linewidth=2.5, color='darkred', 
+            marker='o', markersize=4, label='10-Tick Avg Rate', linestyle='-')
+    
+    ax.set_xlabel('Simulation Time (ticks)')
+    ax.set_ylabel('Mutations')
+    ax.set_title('Mutation Activity (Actual vs Smoothed Rate)')
+    ax.legend(loc='upper right', fontsize=9)
+    ax.grid(True, alpha=0.3)
+    
+    # Add note about cooldown
+    ax.text(0.02, 0.98, 'Note: Cooldown period limits mutations per driver to ~1 per 10 ticks',
+            transform=ax.transAxes, fontsize=8, verticalalignment='top',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
 
 
 def _plot_driver_mutation_frequency(ax, time_series: Optional[SimulationTimeSeries]) -> None:
