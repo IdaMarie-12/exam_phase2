@@ -41,8 +41,17 @@ class SimulationTimeSeries:
         # Behaviour tracking
         self.behaviour_distribution = []  # List of dicts tracking behaviour counts
         self.behaviour_mutations = []      # List tracking cumulative mutations per tick
-        self.behaviour_stability = []      # List tracking drivers stable in same behaviour (no change)
+        self.behaviour_stagnation = []     # List tracking drivers stable in same behaviour (no change)
         self.earnings_stagnation_events = []  # List tracking drivers with earnings stagnation (70% within ±5%)
+        
+        # Policy & Offer tracking
+        self.offers_generated = []         # Number of offers created per tick
+        self.offers_accepted = []          # Number of offers accepted per tick
+        self.offer_acceptance_rate = []    # Percentage of offers accepted per tick
+        self.policy_names = set()          # Set of all unique policy names used
+        self.policy_offers_by_type = []    # List of dicts tracking offers per policy type per tick
+        self.policy_success_rates = []     # List of dicts tracking success % per policy per tick
+        self.avg_offer_quality = []        # Average reward/time ratio per tick
         
         # Internal state tracking
         self._previous_behaviours = {}  # Map of driver_id -> behaviour_type
@@ -54,6 +63,8 @@ class SimulationTimeSeries:
             'exit_earnings': 0,
             'stagnation_exploration': 0
         }  # Breakdown of mutations by reason
+        self._offer_history = []        # Store all offers for analysis
+        self._policy_request_tracking = {}  # Track request completion by policy
     
     def record_tick(self, simulation):
         """Capture current simulation state including behaviour changes."""
@@ -96,6 +107,7 @@ class SimulationTimeSeries:
         self.utilization.append(utilization)
         
         self._track_behaviour_changes(simulation)
+        self._track_offers_and_policies(simulation)
     
     def _track_behaviour_changes(self, simulation):
         """Track driver behaviour mutations and stagnation."""
@@ -138,7 +150,7 @@ class SimulationTimeSeries:
         # Record metrics
         self.behaviour_distribution.append(dict(behaviour_counts))
         self.behaviour_mutations.append(self._total_mutations)
-        self.behaviour_stability.append(stable_count)
+        self.behaviour_stagnation.append(stable_count)
         self.earnings_stagnation_events.append(earnings_stagnation_count)
         
         # Update previous state for next tick
@@ -189,6 +201,92 @@ class SimulationTimeSeries:
         
         self._mutation_reason_counts = reason_counts
     
+    def _track_offers_and_policies(self, simulation) -> None:
+        """Track offer generation and policy performance metrics."""
+        # Check if simulation has offer history attribute
+        if not hasattr(simulation, 'offer_history'):
+            # Initialize default tracking if not present
+            self.offers_generated.append(0)
+            self.offers_accepted.append(0)
+            self.offer_acceptance_rate.append(0.0)
+            self.policy_offers_by_type.append({})
+            self.policy_success_rates.append({})
+            self.avg_offer_quality.append(0.0)
+            return
+        
+        # Get offers from this tick (offers in offer_history with time == simulation.time)
+        current_tick_offers = [
+            o for o in simulation.offer_history 
+            if hasattr(o, 'created_at') and o.created_at == simulation.time
+        ]
+        
+        # Track offers generated
+        self.offers_generated.append(len(current_tick_offers))
+        
+        # Group offers by policy
+        policy_counts = {}
+        total_quality = 0.0
+        
+        for offer in current_tick_offers:
+            policy_name = getattr(offer, 'policy_name', 'Unknown')
+            self.policy_names.add(policy_name)
+            
+            # Count offers by policy
+            policy_counts[policy_name] = policy_counts.get(policy_name, 0) + 1
+            
+            # Track offer quality (reward/time ratio)
+            reward = getattr(offer, 'estimated_reward', 0)
+            time = getattr(offer, 'estimated_travel_time', 1)
+            if time > 0:
+                total_quality += (reward / time)
+        
+        # Calculate average quality
+        if current_tick_offers:
+            avg_quality = total_quality / len(current_tick_offers)
+        else:
+            avg_quality = 0.0
+        
+        self.avg_offer_quality.append(avg_quality)
+        self.policy_offers_by_type.append(policy_counts)
+        
+        # Count accepted offers (offers with accepted status)
+        accepted_count = sum(
+            1 for o in current_tick_offers 
+            if hasattr(o, 'status') and o.status == 'accepted'
+        )
+        
+        self.offers_accepted.append(accepted_count)
+        
+        # Calculate acceptance rate
+        if current_tick_offers:
+            acceptance_rate = (accepted_count / len(current_tick_offers)) * 100.0
+        else:
+            acceptance_rate = 0.0
+        
+        self.offer_acceptance_rate.append(acceptance_rate)
+        
+        # Track policy success rates (requests completed by policy)
+        policy_success = {}
+        if hasattr(simulation, 'served_history'):
+            served_by_policy = {}
+            total_by_policy = {}
+            
+            for request in simulation.requests:
+                if hasattr(request, 'policy_used'):
+                    policy = request.policy_used
+                    total_by_policy[policy] = total_by_policy.get(policy, 0) + 1
+                    
+                    if request.status == 'DELIVERED':
+                        served_by_policy[policy] = served_by_policy.get(policy, 0) + 1
+            
+            for policy, total in total_by_policy.items():
+                if total > 0:
+                    policy_success[policy] = (served_by_policy.get(policy, 0) / total) * 100.0
+                else:
+                    policy_success[policy] = 0.0
+        
+        self.policy_success_rates.append(policy_success)
+    
     def get_data(self):
         """Return all time-series data as dict."""
         return {
@@ -200,8 +298,13 @@ class SimulationTimeSeries:
             'utilization': self.utilization,
             'behaviour_distribution': self.behaviour_distribution,
             'behaviour_mutations': self.behaviour_mutations,
-            'behaviour_stability': self.behaviour_stability,
+            'behaviour_stagnation': self.behaviour_stagnation,
             'earnings_stagnation_events': self.earnings_stagnation_events,
+            'offers_generated': self.offers_generated,
+            'offers_accepted': self.offers_accepted,
+            'offer_acceptance_rate': self.offer_acceptance_rate,
+            'policy_offers_by_type': self.policy_offers_by_type,
+            'avg_offer_quality': self.avg_offer_quality,
         }
     
     def get_final_summary(self):
@@ -211,8 +314,14 @@ class SimulationTimeSeries:
         
         total_requests = self.served[-1] + self.expired[-1]
         total_mutations = self.behaviour_mutations[-1] if self.behaviour_mutations else 0
-        avg_stability = sum(self.behaviour_stability) / len(self.behaviour_stability) if self.behaviour_stability else 0
+        avg_stability = sum(self.behaviour_stagnation) / len(self.behaviour_stagnation) if self.behaviour_stagnation else 0
         avg_earnings_stagnation = sum(self.earnings_stagnation_events) / len(self.earnings_stagnation_events) if self.earnings_stagnation_events else 0
+        
+        # Calculate offer metrics
+        total_offers_generated = sum(self.offers_generated) if self.offers_generated else 0
+        total_offers_accepted = sum(self.offers_accepted) if self.offers_accepted else 0
+        avg_offer_quality = sum(self.avg_offer_quality) / len(self.avg_offer_quality) if self.avg_offer_quality else 0.0
+        avg_acceptance_rate = sum(self.offer_acceptance_rate) / len(self.offer_acceptance_rate) if self.offer_acceptance_rate else 0.0
         
         return {
             'total_time': self.times[-1],
@@ -222,10 +331,15 @@ class SimulationTimeSeries:
             'total_requests': total_requests,
             'service_level': (self.served[-1] / total_requests * 100.0) if total_requests > 0 else 0.0,
             'total_behaviour_mutations': total_mutations,
-            'avg_stable_drivers': avg_stability,
+            'avg_stagnant_drivers': avg_stability,
             'avg_earnings_stagnation_events': avg_earnings_stagnation,
             'mutation_reason_breakdown': self._mutation_reason_counts.copy(),
             'final_behaviour_distribution': self.behaviour_distribution[-1] if self.behaviour_distribution else {},
+            'total_offers_generated': total_offers_generated,
+            'total_offers_accepted': total_offers_accepted,
+            'avg_offer_quality': avg_offer_quality,
+            'avg_acceptance_rate': avg_acceptance_rate,
+            'policies_used': list(self.policy_names),
         }
 
 

@@ -13,7 +13,7 @@ import matplotlib.gridspec as gridspec
 
 
 def generate_report(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Generate 3 matplotlib windows: metrics, behaviour analysis, and mutation analysis.
+    """Generate 4 matplotlib windows: metrics, behaviour analysis, mutation analysis, and policy/offer analysis.
     
     Args:
         simulation: Completed DeliverySimulation instance
@@ -21,11 +21,12 @@ def generate_report(simulation, time_series: Optional[SimulationTimeSeries] = No
     """
     
     # ====================================================================
-    # Create all 3 windows
+    # Create all 4 windows
     # ====================================================================
-    _show_mutation_window(simulation, time_series) # window 3
-    _show_behaviour_window(simulation, time_series) # window 2
-    _show_metrics_window(simulation, time_series) # window 1
+    _show_policy_offer_window(simulation, time_series)  # window 4
+    _show_mutation_window(simulation, time_series)      # window 3
+    _show_behaviour_window(simulation, time_series)     # window 2
+    _show_metrics_window(simulation, time_series)       # window 1
     
     # Display all windows and wait for user to close them
     print("\n Report windows opened. Close the windows to continue.")
@@ -212,6 +213,63 @@ def _plot_summary_statistics(ax, simulation, time_series: Optional[SimulationTim
 # BEHAVIOUR & MUTATION ANALYSIS WINDOWS
 # ====================================================================
 
+def _show_policy_offer_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
+    """Display window with policy and offer analysis plots."""
+    if time_series is None or (not time_series.offers_generated and not time_series.policy_offers_by_type):
+        fig = plt.figure(num=4, figsize=(16, 10))
+        fig.suptitle('Policy & Offer Analysis', fontsize=16, fontweight='bold')
+        ax = fig.add_subplot(111)
+        ax.text(0.5, 0.5, 'No offer/policy data available', ha='center', va='center',
+                transform=ax.transAxes, fontsize=12)
+        return
+    
+    fig4 = plt.figure(num=4, figsize=(16, 13))
+    fig4.suptitle('Policy & Offer Analysis', fontsize=14, fontweight='bold')
+    
+    # Create grid: 3 rows, 2 columns
+    gs = gridspec.GridSpec(3, 2, figure=fig4, hspace=0.40, wspace=0.40, top=0.96, bottom=0.06, left=0.08, right=0.96)
+    
+    # Plot 0: Offers generated over time
+    ax0 = fig4.add_subplot(gs[0, 0])
+    _plot_offers_generated(ax0, time_series)
+    
+    # Plot 1: Offer acceptance rate
+    ax1 = fig4.add_subplot(gs[0, 1])
+    _plot_offer_acceptance_rate(ax1, time_series)
+    
+    # Plot 2: Average offer quality
+    ax2 = fig4.add_subplot(gs[1, 0])
+    _plot_offer_quality(ax2, time_series)
+    
+    # Plot 3: Offers by policy type (stacked)
+    ax3 = fig4.add_subplot(gs[1, 1])
+    _plot_policy_offers_distribution(ax3, time_series)
+    
+    # Plot 4: Summary statistics
+    ax4 = fig4.add_subplot(gs[2, :])
+    ax4.axis('off')
+    
+    if time_series:
+        summary = time_series.get_final_summary()
+        offers_text = f"""
+POLICY & OFFER PERFORMANCE SUMMARY
+{'=' * 60}
+
+Offers Generated:           {summary.get('total_offers_generated', 0)}
+Offers Accepted:            {summary.get('total_offers_accepted', 0)}
+Average Acceptance Rate:    {summary.get('avg_acceptance_rate', 0):.1f}%
+Average Offer Quality:      {summary.get('avg_offer_quality', 0):.4f} (Reward/Time)
+
+Policies Used:              {', '.join(summary.get('policies_used', []))}
+"""
+    else:
+        offers_text = "No offer data available"
+    
+    ax4.text(0.05, 0.95, offers_text, transform=ax4.transAxes,
+             fontsize=11, verticalalignment='top', family='monospace',
+             bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
+
+
 def _show_metrics_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
     """Display window with simulation metrics plots."""
     fig1 = plt.figure(num=1, figsize=(16, 13))
@@ -333,6 +391,93 @@ def _show_mutation_window(simulation, time_series: Optional[SimulationTimeSeries
     if time_series and time_series.behaviour_mutations:
         ax3 = fig3.add_subplot(gs[1, :])
         _plot_mutations_and_stagnation(ax3, time_series)
+
+
+def _plot_offers_generated(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot number of offers generated over time."""
+    if time_series is None or not time_series.offers_generated:
+        ax.text(0.5, 0.5, 'No offer data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Offers Generated')
+        return
+    
+    _plot_time_series(ax, time_series.times, time_series.offers_generated, 
+                     'Offers', 'steelblue', 'Offers Generated Per Tick', 
+                     'Number of Offers', fill=True)
+
+
+def _plot_offer_acceptance_rate(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot offer acceptance rate over time."""
+    if time_series is None or not time_series.offer_acceptance_rate:
+        ax.text(0.5, 0.5, 'No acceptance data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Offer Acceptance Rate')
+        return
+    
+    _plot_time_series(ax, time_series.times, time_series.offer_acceptance_rate,
+                     'Acceptance Rate', 'darkgreen', 'Offer Acceptance Rate Over Time',
+                     'Acceptance Rate (%)', fill=True)
+    ax.set_ylim([0, 105])
+
+
+def _plot_offer_quality(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot average offer quality (reward/time ratio) over time."""
+    if time_series is None or not time_series.avg_offer_quality:
+        ax.text(0.5, 0.5, 'No quality data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Average Offer Quality')
+        return
+    
+    _plot_time_series(ax, time_series.times, time_series.avg_offer_quality,
+                     'Quality', 'purple', 'Average Offer Quality (Reward/Time)',
+                     'Reward per Time Unit', fill=True)
+
+
+def _plot_policy_offers_distribution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot distribution of offers by policy type over time as stacked area."""
+    if time_series is None or not time_series.policy_offers_by_type:
+        ax.text(0.5, 0.5, 'No policy data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Offers by Policy Type')
+        return
+    
+    # Collect all policy names
+    all_policies = set()
+    for policy_dict in time_series.policy_offers_by_type:
+        all_policies.update(policy_dict.keys())
+    
+    all_policies = sorted(list(all_policies))
+    
+    if not all_policies:
+        ax.text(0.5, 0.5, 'No policy offers recorded', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Offers by Policy Type')
+        return
+    
+    # Build data for each policy over time
+    policy_series = {policy: [] for policy in all_policies}
+    for policy_dict in time_series.policy_offers_by_type:
+        for policy in all_policies:
+            policy_series[policy].append(policy_dict.get(policy, 0))
+    
+    # Plot stacked area chart
+    ax.stackplot(time_series.times,
+                 *[policy_series[p] for p in all_policies],
+                 labels=all_policies,
+                 colors=PLOT_COLOURS[:len(all_policies)],
+                 alpha=0.7)
+    
+    ax.set_xlabel('Simulation Time (ticks)')
+    ax.set_ylabel('Number of Offers')
+    ax.set_title('Offers Generated by Policy Type')
+    
+    if len(all_policies) > 6:
+        ax.legend(loc='upper left', fontsize=8, ncol=2, framealpha=0.9)
+    else:
+        ax.legend(loc='upper left', fontsize=9)
+    
+    ax.grid(True, alpha=0.3)
+
 
 
 

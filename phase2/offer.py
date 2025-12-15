@@ -1,7 +1,6 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, Dict, Any, TYPE_CHECKING
-from datetime import datetime
 
 if TYPE_CHECKING:
     from .driver import Driver
@@ -16,7 +15,7 @@ class Offer:
     request: Request
     estimated_travel_time: float
     estimated_reward: float
-    created_at: Optional[datetime] = field(default_factory=datetime.now)
+    created_at: Optional[int] = None  # Simulation time tick when offer was created
     policy_name: Optional[str] = None
 
     def reward_per_time(self) -> float:
@@ -38,7 +37,7 @@ class Offer:
             "estimated_reward": float(self.estimated_reward),
             "reward_per_time": float(self.reward_per_time()),
             "pickup_distance": float(self.pickup_distance()),
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": self.created_at,
             "policy_name": self.policy_name,
         }
 
