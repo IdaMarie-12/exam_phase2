@@ -1,6 +1,3 @@
-"""Driver behaviour strategies for offer acceptance decisions.
-Implements three behaviour classes: GreedyDistanceBehaviour, EarningsMaxBehaviour, and LazyBehaviour.
-Each defines accept/reject logic based on distance, earnings efficiency, or idle time constraints."""
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -8,8 +5,10 @@ if TYPE_CHECKING:
     from .offer import Offer
     from .driver import Driver
 
+"""Driver behaviour strategies for offer acceptance decisions.
+Implements three behaviour classes: GreedyDistanceBehaviour, EarningsMaxBehaviour, and LazyBehaviour.
+Each defines accept/reject logic based on distance, earnings efficiency, or idle time constraints."""
 
-# ====================================================================
 # BEHAVIOUR PARAMETERS and CONSTANTS
 
 # LazyBehaviour: Maximum acceptable distance to pickup location
@@ -108,3 +107,4 @@ class LazyBehaviour(DriverBehaviour):
         
         # Accept only if both conditions are met: sufficient rest AND nearby job
         return idle_duration >= self.idle_ticks_needed and distance_to_pickup < LAZY_MAX_PICKUP_DISTANCE
+
