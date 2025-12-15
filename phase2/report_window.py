@@ -317,24 +317,28 @@ def _plot_behaviour_distribution_evolution(ax, time_series: Optional[SimulationT
 # ====================================================================
 
 def _show_mutation_root_cause_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Display window 3: Mutation reasons breakdown and driver mutation frequency."""
+    """Display window 3: Mutation analysis with cumulative count, reason breakdown, and frequency distribution."""
     
-    fig3 = plt.figure(num=3, figsize=(16, 11))
+    fig3 = plt.figure(num=3, figsize=(16, 12))
     fig3.suptitle('Mutation Root Cause Analysis', fontsize=14, fontweight='bold')
     
-    gs = gridspec.GridSpec(2, 2, figure=fig3, hspace=0.50, wspace=0.40, top=0.96, bottom=0.06, left=0.08, right=0.96)
+    gs = gridspec.GridSpec(3, 2, figure=fig3, hspace=0.50, wspace=0.40, top=0.96, bottom=0.06, left=0.08, right=0.96)
     
-    # Plot 1: Mutation reasons pie chart
+    # Plot 1: Mutation reasons pie chart (final breakdown)
     ax1 = fig3.add_subplot(gs[0, 0])
     _plot_mutation_reasons_pie(ax1, time_series)
     
-    # Plot 2: Mutation rate over time
+    # Plot 2: Cumulative mutation count over time
     ax2 = fig3.add_subplot(gs[0, 1])
-    _plot_mutation_rate_evolution(ax2, time_series)
+    _plot_cumulative_mutations(ax2, time_series)
     
-    # Plot 3: Driver mutation frequency distribution
+    # Plot 3: Mutation reasons evolution (stacked area)
     ax3 = fig3.add_subplot(gs[1, :])
-    _plot_driver_mutation_frequency(ax3, time_series)
+    _plot_mutation_reasons_evolution(ax3, time_series)
+    
+    # Plot 4: Driver mutation frequency distribution
+    ax4 = fig3.add_subplot(gs[2, :])
+    _plot_driver_mutation_frequency(ax4, time_series)
 
 
 def _plot_mutation_reasons_pie(ax, time_series: Optional[SimulationTimeSeries]) -> None:
@@ -373,6 +377,86 @@ def _plot_mutation_reasons_pie(ax, time_series: Optional[SimulationTimeSeries]) 
     
     ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=colors[:len(filtered_reasons)], startangle=90)
     ax.set_title('Mutation Reason Distribution')
+
+
+def _plot_cumulative_mutations(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot cumulative mutation count over time."""
+    if time_series is None or not time_series.times or not time_series.mutations_per_tick:
+        ax.text(0.5, 0.5, 'No mutation data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Cumulative Mutations Over Time')
+        return
+    
+    # Calculate cumulative mutations
+    cumulative = []
+    total = 0
+    for mutations in time_series.mutations_per_tick:
+        total += mutations
+        cumulative.append(total)
+    
+    ax.plot(time_series.times, cumulative, linewidth=2.5, color='darkred', marker='o', markersize=3)
+    ax.fill_between(time_series.times, cumulative, alpha=0.2, color='red')
+    
+    ax.set_xlabel('Simulation Time (ticks)')
+    ax.set_ylabel('Total Mutations')
+    ax.set_title('Cumulative Mutation Count')
+    ax.grid(True, alpha=0.3)
+
+
+def _plot_mutation_reasons_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot stacked area showing mutation reasons over time."""
+    if time_series is None or not time_series.mutation_reasons or not time_series.times:
+        ax.text(0.5, 0.5, 'No mutation reason data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Mutation Reasons Over Time')
+        return
+    
+    # Collect all possible reasons
+    all_reasons = set()
+    for reason_dict in time_series.mutation_reasons:
+        all_reasons.update(reason_dict.keys())
+    
+    if not all_reasons:
+        ax.text(0.5, 0.5, 'No mutation reasons recorded', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Mutation Reasons Over Time')
+        return
+    
+    # Format reason names for display
+    reason_labels = {
+        'performance_low_earnings': 'Low Earnings',
+        'performance_high_earnings': 'High Earnings',
+        'exit_greedy': 'Exit Greedy',
+        'exit_earnings': 'Exit EarningsMax',
+        'exit_lazy': 'Exit Lazy',
+        'stagnation_exploration': 'Stagnation Exploration'
+    }
+    
+    all_reasons = sorted(list(all_reasons))
+    
+    # Build cumulative data for each reason
+    reason_series = {reason: [] for reason in all_reasons}
+    cumulative_counts = {reason: 0 for reason in all_reasons}
+    
+    for reason_dict in time_series.mutation_reasons:
+        for reason in all_reasons:
+            count = reason_dict.get(reason, 0)
+            cumulative_counts[reason] += count
+            reason_series[reason].append(cumulative_counts[reason])
+    
+    # Plot stacked area
+    labels = [reason_labels.get(r, r) for r in all_reasons]
+    ax.stackplot(time_series.times,
+                 *[reason_series[r] for r in all_reasons],
+                 labels=labels,
+                 colors=PLOT_COLOURS[:len(all_reasons)],
+                 alpha=0.75)
+    
+    ax.set_xlabel('Simulation Time (ticks)')
+    ax.set_ylabel('Cumulative Mutations')
+    ax.set_title('Mutation Reasons Over Time (Cumulative Breakdown)')
+    ax.legend(loc='upper left', fontsize=8, ncol=2)
+    ax.grid(True, alpha=0.3)
 
 
 def _plot_mutation_rate_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
