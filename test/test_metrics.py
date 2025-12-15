@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import Mock
 
 from phase2.helpers_2.metrics_helpers import SimulationTimeSeries
 from phase2.driver import Driver
