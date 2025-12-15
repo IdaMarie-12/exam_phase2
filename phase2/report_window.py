@@ -352,19 +352,21 @@ def _plot_mutation_reasons_pie(ax, time_series: Optional[SimulationTimeSeries]) 
         ax.set_title('Mutation Reasons')
         return
     
-    # Format reason names
+    # Format reason names for display
     reason_labels = {
         'performance_low_earnings': 'Low Earnings',
         'performance_high_earnings': 'High Earnings',
         'exit_greedy': 'Exit Greedy',
         'exit_earnings': 'Exit EarningsMax',
-        'stagnation_exploration': 'Stagnation'
+        'exit_lazy': 'Exit Lazy',
+        'stagnation_exploration': 'Stagnation Exploration'
     }
     
     labels = [reason_labels.get(k, k) for k in filtered_reasons.keys()]
     sizes = list(filtered_reasons.values())
+    colors = PLOT_COLOURS if len(filtered_reasons) <= len(PLOT_COLOURS) else PLOT_COLOURS * (len(filtered_reasons) // len(PLOT_COLOURS) + 1)
     
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=PLOT_COLOURS, startangle=90)
+    ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=colors[:len(filtered_reasons)], startangle=90)
     ax.set_title('Mutation Reason Distribution')
 
 

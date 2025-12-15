@@ -70,6 +70,7 @@ class TestSimulationTimeSeriesInitialization(unittest.TestCase):
             'performance_high_earnings': 0,
             'exit_greedy': 0,
             'exit_earnings': 0,
+            'exit_lazy': 0,
             'stagnation_exploration': 0
         }
         self.assertEqual(ts._mutation_reason_counts, expected_reasons)

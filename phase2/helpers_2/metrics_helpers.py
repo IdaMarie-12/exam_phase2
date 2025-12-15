@@ -92,8 +92,9 @@ class SimulationTimeSeries:
             'performance_high_earnings': 0,
             'exit_greedy': 0,
             'exit_earnings': 0,
+            'exit_lazy': 0,
             'stagnation_exploration': 0
-        }  # Breakdown of mutations by reason
+        }  # Breakdown of mutations by reason (6 types total)
         self._mutations_last_10_ticks = 0  # Track mutations in last 10 ticks for rate
         self._recent_driver_mutations = {}  # Track which drivers mutated recently (last 5 ticks)
         self._previous_requests_count = 0  # Track request generation per tick
@@ -236,6 +237,7 @@ class SimulationTimeSeries:
             'performance_high_earnings': 0,
             'exit_greedy': 0,
             'exit_earnings': 0,
+            'exit_lazy': 0,
             'stagnation_exploration': 0
         }
         
