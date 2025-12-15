@@ -1,431 +1,229 @@
-"""
-Unit tests for report_window.py module.
-Tests visualization window creation and plot data handling.
-"""
-
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+import matplotlib.pyplot as plt
+
 from phase2.report_window import (
-    generate_report,
+    _plot_requests_evolution,
+    _plot_service_level_evolution,
+    _plot_wait_time_evolution,
+    _plot_utilization_evolution,
+    _plot_behaviour_distribution_evolution,
+    _plot_mutation_rate_evolution,
+    _plot_driver_mutation_frequency,
+    _plot_offers_generated,
+    _plot_offer_acceptance_rate,
+    _plot_offer_quality,
+    _plot_policy_distribution
 )
-from phase2.simulation import DeliverySimulation
-from phase2.behaviours import LazyBehaviour
 from phase2.helpers_2.metrics_helpers import SimulationTimeSeries
+from phase2.driver import Driver
+from phase2.behaviours import GreedyDistanceBehaviour
+from phase2.point import Point
 
-class TestStaticSummary(unittest.TestCase):
-    """Test _get_static_summary function."""
 
-    def setUp(self):
-        """Create mock simulation for testing."""
-        self.simulation = Mock(spec=DeliverySimulation)
-        self.simulation.served_count = 50
-        self.simulation.expired_count = 10
-        self.simulation.time = 1000
-        self.simulation.avg_wait = 25.5
-
-    def test_static_summary_all_fields(self):
-        """Summary contains all required fields."""
-        summary = _get_static_summary(self.simulation)
-        
-        required_fields = [
-            'total_time', 'total_requests', 'final_served',
-            'final_expired', 'service_level', 'final_avg_wait'
+class MockSimulation:
+    """Mock simulation for report window tests."""
+    
+    def __init__(self, num_drivers=5):
+        self.time = 100
+        self.served_count = 50
+        self.expired_count = 25
+        self.avg_wait = 3.5
+        self.drivers = [
+            Driver(id=i, position=Point(i, i), 
+                   behaviour=GreedyDistanceBehaviour(10.0))
+            for i in range(num_drivers)
         ]
-        for field in required_fields:
-            self.assertIn(field, summary)
-
-    def test_static_summary_total_requests(self):
-        """Total requests = served + expired."""
-        self.simulation.served_count = 50
-        self.simulation.expired_count = 10
-        summary = _get_static_summary(self.simulation)
-        self.assertEqual(summary['total_requests'], 60)
-
-    def test_static_summary_service_level(self):
-        """Service level correctly calculated."""
-        self.simulation.served_count = 50
-        self.simulation.expired_count = 50
-        summary = _get_static_summary(self.simulation)
-        self.assertAlmostEqual(summary['service_level'], 50.0)
-
-    def test_static_summary_service_level_all_served(self):
-        """Service level 100% when all requests served."""
-        self.simulation.served_count = 100
-        self.simulation.expired_count = 0
-        summary = _get_static_summary(self.simulation)
-        self.assertAlmostEqual(summary['service_level'], 100.0)
-
-    def test_static_summary_service_level_none_served(self):
-        """Service level 0% when no requests served."""
-        self.simulation.served_count = 0
-        self.simulation.expired_count = 100
-        summary = _get_static_summary(self.simulation)
-        self.assertAlmostEqual(summary['service_level'], 0.0)
-
-    def test_static_summary_no_requests(self):
-        """Service level 0 when no requests."""
-        self.simulation.served_count = 0
-        self.simulation.expired_count = 0
-        summary = _get_static_summary(self.simulation)
-        self.assertEqual(summary['service_level'], 0.0)
-        self.assertEqual(summary['total_requests'], 0)
-
-    def test_static_summary_time(self):
-        """Summary includes simulation time."""
-        self.simulation.time = 2500
-        summary = _get_static_summary(self.simulation)
-        self.assertEqual(summary['total_time'], 2500)
-
-    def test_static_summary_avg_wait(self):
-        """Summary includes average wait time."""
-        self.simulation.avg_wait = 42.3
-        summary = _get_static_summary(self.simulation)
-        self.assertAlmostEqual(summary['final_avg_wait'], 42.3)
+        self.requests = []
+        self.offer_history = []
 
 
-class TestGenerateReportMatplotlibCheck(unittest.TestCase):
-    """Test generate_report matplotlib availability checking."""
-
+class TestPlotFunctions(unittest.TestCase):
+    """Test plot generation functions."""
+    
     def setUp(self):
-        """Create mock simulation."""
-        self.simulation = Mock(spec=DeliverySimulation)
-        self.simulation.drivers = []
-        self.simulation.requests = []
-
-    @patch('phase2.report_window.HAS_MATPLOTLIB', False)
-    def test_generate_report_no_matplotlib_raises(self):
-        """generate_report raises RuntimeError if matplotlib not available."""
-        with self.assertRaises(RuntimeError) as context:
-            generate_report(self.simulation)
-        self.assertIn("matplotlib", str(context.exception))
-
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
-    @patch('phase2.report_window._show_mutation_window')
-    @patch('phase2.report_window._show_behaviour_window')
-    @patch('phase2.report_window.plt')
-    def test_generate_report_with_matplotlib_creates_figure(self, mock_plt, mock_behaviour, mock_mutation):
-        """generate_report creates figure when matplotlib available."""
-        mock_fig = MagicMock()
-        mock_plt.figure.return_value = mock_fig
+        """Create test time-series data."""
+        self.time_series = SimulationTimeSeries()
         
-        self.simulation.served_count = 10
-        self.simulation.expired_count = 5
-        self.simulation.time = 100
-        self.simulation.avg_wait = 15.0
-        self.simulation.mutation = Mock()
-        self.simulation.mutation.mutation_history = []
-        self.simulation.mutation.mutation_transitions = {}
+        # Populate with sample data
+        for tick in range(1, 11):
+            self.sim = MockSimulation()
+            self.sim.time = tick
+            self.sim.served_count = tick * 10
+            self.sim.expired_count = tick * 3
+            self.sim.avg_wait = 2.0 + (tick * 0.1)
+            
+            # Make some drivers busy for utilization
+            for i in range(min(tick, 5)):
+                self.sim.drivers[i].status = 'BUSY'
+            
+            self.time_series.record_tick(self.sim)
+    
+    def tearDown(self):
+        """Close all matplotlib figures."""
+        plt.close('all')
+    
+    def test_plot_requests_evolution_with_data(self):
+        """Plot requests evolution with valid data."""
+        fig, ax = plt.subplots()
         
-        generate_report(self.simulation, time_series=None)
+        # Should not raise exception
+        _plot_requests_evolution(ax, self.time_series)
         
-        # Should attempt to create figure
-        mock_plt.figure.assert_called()
-
-
-class TestQuickReport(unittest.TestCase):
-    """Test quick_report convenience function."""
-
-    @patch('phase2.report_window.generate_report')
-    def test_quick_report_calls_generate_report(self, mock_generate):
-        """quick_report calls generate_report with same arguments."""
-        sim = Mock(spec=DeliverySimulation)
-        time_series = Mock(spec=SimulationTimeSeries)
+        self.assertEqual(ax.get_title(), 'Request Fulfillment Evolution')
+        self.assertTrue(len(ax.lines) > 0)
+    
+    def test_plot_requests_evolution_no_data(self):
+        """Plot requests evolution handles no data gracefully."""
+        fig, ax = plt.subplots()
         
-        quick_report(sim, time_series)
+        _plot_requests_evolution(ax, None)
         
-        mock_generate.assert_called_once_with(sim, time_series)
-
-    @patch('phase2.report_window.generate_report')
-    def test_quick_report_without_time_series(self, mock_generate):
-        """quick_report handles None time_series."""
-        sim = Mock(spec=DeliverySimulation)
+        self.assertEqual(ax.get_title(), 'Served vs Expired Requests')
+    
+    def test_plot_service_level_evolution(self):
+        """Plot service level evolution."""
+        fig, ax = plt.subplots()
         
-        quick_report(sim)
+        _plot_service_level_evolution(ax, self.time_series)
         
-        mock_generate.assert_called_once_with(sim, None)
+        self.assertEqual(ax.get_title(), 'Service Level Evolution (% Served)')
+        # Service level should be between 0 and 100%
+        ylim = ax.get_ylim()
+        self.assertLessEqual(ylim[1], 105)
+    
+    def test_plot_wait_time_evolution(self):
+        """Plot wait time evolution."""
+        fig, ax = plt.subplots()
         
-class TestDataFormatForPlotting(unittest.TestCase):
-    """Test that plot functions properly handle data."""
-
-    def setUp(self):
-        """Create mock time series."""
-        self.time_series = Mock(spec=SimulationTimeSeries)
-        self.time_series.times = [0, 10, 20, 30]
-        self.time_series.get_data.return_value = {
-            'times': [0, 10, 20, 30],
-            'served': [0, 5, 10, 15],
-            'expired': [0, 1, 2, 3],
-            'avg_wait': [0, 10, 15, 18],
-            'pending': [50, 45, 40, 35],
-            'utilization': [50, 60, 70, 80],
-        }
-
-    @patch('phase2.report_window.plt')
-    def test_plot_requests_evolution_with_data(self, mock_plt):
-        """_plot_requests_evolution handles data correctly."""
-        from phase2.report_window import _plot_requests_evolution
+        _plot_wait_time_evolution(ax, self.time_series)
         
-        mock_ax = MagicMock()
-        _plot_requests_evolution(mock_ax, self.time_series)
+        self.assertIn('Wait Time', ax.get_title())
+        self.assertTrue(len(ax.lines) > 0)
+    
+    def test_plot_utilization_evolution(self):
+        """Plot utilization evolution."""
+        fig, ax = plt.subplots()
         
-        # Should call plot for both served and expired
-        self.assertGreaterEqual(mock_ax.plot.call_count, 2)
-
-    @patch('phase2.report_window.plt')
-    def test_plot_requests_evolution_none_time_series(self, mock_plt):
-        """_plot_requests_evolution handles None time_series."""
-        from phase2.report_window import _plot_requests_evolution
+        _plot_utilization_evolution(ax, self.time_series)
         
-        mock_ax = MagicMock()
-        _plot_requests_evolution(mock_ax, None)
+        self.assertIn('Utilization', ax.get_title())
+        # Utilization should have max line at 100%
+        self.assertTrue(len(ax.lines) > 1)
+    
+    def test_plot_behaviour_distribution_evolution(self):
+        """Plot behaviour distribution evolution."""
+        fig, ax = plt.subplots()
         
-        # Should display "No time-series data" message
-        mock_ax.text.assert_called()
-
-    @patch('phase2.report_window.plt')
-    def test_plot_wait_time_evolution_with_data(self, mock_plt):
-        """_plot_wait_time_evolution handles data correctly."""
-        from phase2.report_window import _plot_wait_time_evolution
+        _plot_behaviour_distribution_evolution(ax, self.time_series)
         
-        mock_ax = MagicMock()
-        _plot_wait_time_evolution(mock_ax, self.time_series)
+        self.assertIn('Behaviour', ax.get_title())
+    
+    def test_plot_mutation_rate_evolution(self):
+        """Plot mutation rate evolution."""
+        fig, ax = plt.subplots()
         
-        # Should plot wait time data
-        mock_ax.plot.assert_called()
-
-    @patch('phase2.report_window.plt')
-    def test_plot_pending_evolution_with_data(self, mock_plt):
-        """_plot_pending_evolution handles data correctly."""
-        from phase2.report_window import _plot_pending_evolution
+        _plot_mutation_rate_evolution(ax, self.time_series)
         
-        mock_ax = MagicMock()
-        _plot_pending_evolution(mock_ax, self.time_series)
+        self.assertIn('Mutation', ax.get_title())
+    
+    def test_plot_driver_mutation_frequency(self):
+        """Plot driver mutation frequency distribution."""
+        fig, ax = plt.subplots()
         
-        # Should plot pending data
-        mock_ax.plot.assert_called()
-
-    @patch('phase2.report_window.plt')
-    def test_plot_utilization_evolution_with_data(self, mock_plt):
-        """_plot_utilization_evolution handles data correctly."""
-        from phase2.report_window import _plot_utilization_evolution
+        # Add some driver mutations
+        self.time_series.driver_mutation_freq = {1: 2, 2: 1, 3: 3, 4: 1}
         
-        mock_ax = MagicMock()
-        _plot_utilization_evolution(mock_ax, self.time_series)
+        _plot_driver_mutation_frequency(ax, self.time_series)
         
-        # Should plot utilization data
-        mock_ax.plot.assert_called()
-
-    @patch('phase2.report_window.plt')
-    def test_plot_utilization_sets_limits(self, mock_plt):
-        """_plot_utilization_evolution sets y-limits."""
-        from phase2.report_window import _plot_utilization_evolution
+        self.assertIn('Frequency', ax.get_title())
+    
+    def test_plot_offers_generated(self):
+        """Plot offers generated."""
+        fig, ax = plt.subplots()
         
-        mock_ax = MagicMock()
-        _plot_utilization_evolution(mock_ax, self.time_series)
+        _plot_offers_generated(ax, self.time_series)
         
-        # Should set y-limits for utilization
-        mock_ax.set_ylim.assert_called()
-
-
-class TestSummaryStatisticsPlot(unittest.TestCase):
-    """Test _plot_summary_statistics function."""
-
-    def setUp(self):
-        """Create mock simulation and time series."""
-        self.simulation = Mock(spec=DeliverySimulation)
-        self.simulation.drivers = [Mock() for _ in range(5)]
-        self.simulation.requests = [Mock() for _ in range(100)]
-        self.simulation.served_count = 80
-        self.simulation.expired_count = 20
-        self.simulation.time = 500
-        self.simulation.avg_wait = 20.0
+        self.assertEqual(ax.get_title(), 'Offers Generated Per Tick')
+    
+    def test_plot_offer_acceptance_rate(self):
+        """Plot offer acceptance rate."""
+        fig, ax = plt.subplots()
         
-        self.time_series = Mock(spec=SimulationTimeSeries)
-
-    @patch('phase2.report_window.plt')
-    def test_plot_summary_statistics_with_time_series(self, mock_plt):
-        """_plot_summary_statistics displays summary with time series."""
-        from phase2.report_window import _plot_summary_statistics
+        _plot_offer_acceptance_rate(ax, self.time_series)
         
-        mock_ax = MagicMock()
-        self.time_series.get_final_summary.return_value = {
-            'total_time': 500,
-            'total_requests': 100,
-            'final_served': 80,
-            'final_expired': 20,
-            'service_level': 80.0,
-            'final_avg_wait': 20.0,
-        }
+        self.assertIn('Acceptance', ax.get_title())
+    
+    def test_plot_offer_quality(self):
+        """Plot offer quality."""
+        fig, ax = plt.subplots()
         
-        _plot_summary_statistics(mock_ax, self.simulation, self.time_series)
+        _plot_offer_quality(ax, self.time_series)
         
-        # Should display text with statistics
-        mock_ax.text.assert_called()
-
-    @patch('phase2.report_window.plt')
-    def test_plot_summary_statistics_without_time_series(self, mock_plt):
-        """_plot_summary_statistics displays summary without time series."""
-        from phase2.report_window import _plot_summary_statistics
+        self.assertIn('Quality', ax.get_title())
+    
+    def test_plot_policy_distribution_with_data(self):
+        """Plot policy distribution with data."""
+        fig, ax = plt.subplots()
         
-        mock_ax = MagicMock()
-        _plot_summary_statistics(mock_ax, self.simulation, None)
-        
-        # Should display text with statistics from simulation
-        mock_ax.text.assert_called()
-
-    @patch('phase2.report_window.plt')
-    def test_plot_summary_statistics_turns_off_axes(self, mock_plt):
-        """_plot_summary_statistics turns off axes."""
-        from phase2.report_window import _plot_summary_statistics
-        
-        mock_ax = MagicMock()
-        _plot_summary_statistics(mock_ax, self.simulation, None)
-        
-        # Should turn off axis display
-        mock_ax.axis.assert_called_with('off')
-
-
-class TestBehaviourWindow(unittest.TestCase):
-    """Test behaviour analysis window functions."""
-
-    def setUp(self):
-        """Create mock simulation with drivers."""
-        self.simulation = Mock(spec=DeliverySimulation)
-        self.driver1 = Mock()
-        self.driver1.behaviour = Mock()
-        self.driver1.behaviour.__class__.__name__ = 'LazyBehaviour'
-        
-        self.driver2 = Mock()
-        self.driver2.behaviour = Mock()
-        self.driver2.behaviour.__class__.__name__ = 'GreedyDistanceBehaviour'
-        
-        self.simulation.drivers = [self.driver1, self.driver2]
-
-    @patch('phase2.report_window.plt')
-    def test_show_behaviour_window_creates_figure(self, mock_plt):
-        """_show_behaviour_window creates matplotlib figure."""
-        from phase2.report_window import _show_behaviour_window
-        
-        mock_fig = MagicMock()
-        mock_plt.figure.return_value = mock_fig
-        
-        _show_behaviour_window(self.simulation)
-        
-        # Should create figure
-        mock_plt.figure.assert_called()
-
-
-class TestMutationWindow(unittest.TestCase):
-    """Test mutation analysis window functions."""
-
-    def setUp(self):
-        """Create mock simulation with mutation rule."""
-        self.simulation = Mock(spec=DeliverySimulation)
-        self.simulation.drivers = [Mock() for _ in range(3)]
-        self.simulation.requests = [Mock() for _ in range(100)]
-        self.simulation.served_count = 80
-        self.simulation.expired_count = 20
-        self.simulation.time = 500
-        self.simulation.avg_wait = 20.0
-        self.simulation.mutation = Mock()
-        self.simulation.mutation.mutation_history = [
-            {
-                'time': 10,
-                'driver_id': 1,
-                'from_behaviour': 'LazyBehaviour',
-                'to_behaviour': 'GreedyDistanceBehaviour',
-                'reason': 'performance_low_earnings',
-                'avg_fare': 2.5
-            },
-            {
-                'time': 50,
-                'driver_id': 2,
-                'from_behaviour': 'LazyBehaviour',
-                'to_behaviour': 'EarningsMaxBehaviour',
-                'reason': 'performance_high_earnings',
-                'avg_fare': 12.0
-            }
+        # Add policy distribution data
+        self.time_series.policy_distribution = [
+            {'PolicyA': 2, 'PolicyB': 3},
+            {'PolicyA': 2, 'PolicyB': 3},
         ]
-        self.simulation.mutation.mutation_transitions = {
-            ('LazyBehaviour', 'GreedyDistanceBehaviour'): 3,
-            ('LazyBehaviour', 'EarningsMaxBehaviour'): 2,
-        }
-
-    @patch('phase2.report_window.plt')
-    def test_show_mutation_window_creates_figure(self, mock_plt):
-        """_show_mutation_window creates matplotlib figure."""
-        from phase2.report_window import _show_mutation_window
+        self.time_series.times = [1, 2]
         
-        mock_fig = MagicMock()
-        mock_plt.figure.return_value = mock_fig
+        _plot_policy_distribution(ax, self.time_series)
         
-        # Mock the drivers properly to avoid comparison issues
-        mock_driver1 = Mock()
-        mock_driver1._last_mutation_time = 10
-        mock_driver2 = Mock()
-        mock_driver2._last_mutation_time = 50
+        self.assertIn('Policy', ax.get_title())
+    
+    def test_plot_policy_distribution_no_data(self):
+        """Plot policy distribution handles no data."""
+        fig, ax = plt.subplots()
         
-        self.simulation.drivers = [mock_driver1, mock_driver2]
+        _plot_policy_distribution(ax, None)
         
-        _show_mutation_window(self.simulation)
-        
-        # Should create figure
-        mock_plt.figure.assert_called()
+        self.assertEqual(ax.get_title(), 'Policy Distribution')
 
 
-class TestPlotDataHandling(unittest.TestCase):
-    """Test that plot functions handle various data scenarios."""
-
-    @patch('phase2.report_window.plt')
-    def test_plot_with_empty_times(self, mock_plt):
-        """Plots handle empty time series."""
-        from phase2.report_window import _plot_requests_evolution
+class TestReportWindowIntegration(unittest.TestCase):
+    """Integration tests for report windows."""
+    
+    def setUp(self):
+        self.sim = MockSimulation()
+        self.time_series = SimulationTimeSeries()
         
-        mock_ax = MagicMock()
-        time_series = Mock()
-        time_series.times = []
+        # Add some data
+        for tick in range(1, 6):
+            self.sim.time = tick
+            self.sim.served_count += 10
+            self.sim.expired_count += 2
+            self.time_series.record_tick(self.sim)
+    
+    def tearDown(self):
+        plt.close('all')
+    
+    @patch('matplotlib.pyplot.show')
+    def test_generate_report_creates_windows(self, mock_show):
+        """generate_report creates windows without error."""
+        from phase2.report_window import generate_report
         
-        _plot_requests_evolution(mock_ax, time_series)
+        # Should not raise exception
+        generate_report(self.sim, self.time_series)
         
-        # Should display "No time-series data"
-        mock_ax.text.assert_called()
-
-    @patch('phase2.report_window.plt')
-    def test_plot_with_single_datapoint(self, mock_plt):
-        """Plots handle single datapoint."""
-        from phase2.report_window import _plot_wait_time_evolution
+        # Should have called plt.show()
+        mock_show.assert_called_once()
+    
+    def test_time_series_provides_complete_data(self):
+        """Time-series provides all necessary data for plots."""
+        summary = self.time_series.get_final_summary()
         
-        mock_ax = MagicMock()
-        time_series = Mock()
-        time_series.times = [0]
-        time_series.get_data.return_value = {
-            'times': [0],
-            'avg_wait': [10.0],
-        }
-        
-        _plot_wait_time_evolution(mock_ax, time_series)
-        
-        # Should still plot
-        mock_ax.plot.assert_called()
-
-    @patch('phase2.report_window.plt')
-    def test_plot_with_large_dataset(self, mock_plt):
-        """Plots handle large datasets."""
-        from phase2.report_window import _plot_pending_evolution
-        
-        mock_ax = MagicMock()
-        time_series = Mock()
-        times = list(range(0, 10000, 10))
-        time_series.times = times
-        time_series.get_data.return_value = {
-            'times': times,
-            'pending': list(range(100, 0, -1)) * 100,  # Downward trend
-        }
-        
-        _plot_pending_evolution(mock_ax, time_series)
-        
-        # Should handle large dataset
-        mock_ax.plot.assert_called()
+        # Check required fields exist
+        self.assertIn('total_time', summary)
+        self.assertIn('final_served', summary)
+        self.assertIn('final_expired', summary)
+        self.assertIn('final_service_level', summary)
+        self.assertIn('total_behaviour_mutations', summary)
 
 
 if __name__ == '__main__':
