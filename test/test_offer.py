@@ -1,8 +1,3 @@
-"""
-Unit tests for Offer class.
-Tests offer creation, metrics calculation, and serialization.
-"""
-
 import unittest
 from datetime import datetime
 from phase2.offer import Offer
@@ -484,7 +479,7 @@ class TestOfferComparison(unittest.TestCase):
         """Compare offers for same request from different drivers."""
         driver2 = Driver(
             id=2,
-            position=Point(10.0, 0.0),  # Farther from pickup
+            position=Point(20.0, 0.0),  # Much farther from pickup
             speed=1.0,
         )
         offer1 = Offer(

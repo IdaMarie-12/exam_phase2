@@ -1,8 +1,3 @@
-"""
-Core helper utilities for Phase 2 simulation.
-Only includes functions directly used by Phase 2 classes.
-"""
-
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
@@ -56,8 +51,6 @@ def move_towards(current: "Point", target: "Point", distance: float) -> "Point":
         >>> move_towards(Point(0, 0), Point(10, 0), 5.0)
         Point(5.0, 0.0)
     """
-    from phase2.point import Point  # Import here to avoid circular import
-    
     if distance < 0:
         raise ValueError(f"Distance must be non-negative, got {distance}")
     
@@ -65,16 +58,70 @@ def move_towards(current: "Point", target: "Point", distance: float) -> "Point":
     
     # Already at target
     if total_dist < EPSILON:
-        return Point(current.x, current.y)
+        return current
     
     # Fraction of distance to move (clamped to 1.0 to prevent overshoot)
     frac = min(1.0, distance / total_dist)
     
-    # Linear interpolation
-    dx = (target.x - current.x) * frac
-    dy = (target.y - current.y) * frac
+    # Linear interpolation: direction vector scaled by fraction
+    # Start with current position and accumulate displacement using __iadd__
+    result = current
+    result += frac * (target - current)
     
-    return Point(current.x + dx, current.y + dy)
+    return result
+
+
+def compute_relative_position(current: "Point", reference: "Point") -> "Point":
+    """
+    Compute relative position by subtracting a reference point from current position.
+    
+    Useful for computing displacement vectors or position deltas in coordinate systems.
+    This demonstrates __isub__ for position offset computation.
+    
+    Returns new Point without modifying the original (safe with frozen=True).
+    
+    Args:
+        current: Current position
+        reference: Reference position to subtract from current
+        
+    Returns:
+        Point: Displacement vector (current - reference)
+        
+    Example:
+        >>> compute_relative_position(Point(5, 5), Point(2, 3))
+        Point(3.0, 2.0)
+    """
+    # Compute displacement: subtract reference from current using __isub__
+    # This shows __isub__ in a realistic context: computing position deltas
+    result = current
+    result -= reference
+    
+    return result
+
+
+def distance_between(point_a: "Point", point_b: "Point") -> float:
+    """
+    Compute distance between two points using relative position calculation.
+    
+    Demonstrates using __isub__ to compute displacement, then measuring its magnitude.
+    Useful for conflict resolution and nearest-neighbor matching in dispatch algorithms.
+    
+    Args:
+        point_a: First position
+        point_b: Second position
+        
+    Returns:
+        float: Euclidean distance between points
+        
+    Example:
+        >>> distance_between(Point(0, 0), Point(3, 4))
+        5.0
+    """
+    # Compute displacement vector using __isub__
+    displacement = compute_relative_position(point_a, point_b)
+    
+    # Measure magnitude of displacement (distance from origin)
+    return displacement.distance_to(point_b.__class__(0, 0))
 
 
 def record_assignment_start(history: list, request_id: int, current_time: int) -> None:
@@ -128,7 +175,7 @@ def record_completion(history: list, request_id: int, creation_time: int,
 # ============================================================
 
 def get_driver_history_window(history: list, window: int) -> list:
-    """Return the last `window` entries from a driver's history."""
+    """Return last window entries from history."""
     return history[-window:] if history else []
 
 

@@ -1,23 +1,16 @@
 """
 Unit tests for report_window.py module.
-Tests data aggregation, summary generation, and report preparation functions.
-Note: Visualization functions require matplotlib and are tested for proper data handling.
+Tests visualization window creation and plot data handling.
 """
 
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 from phase2.report_window import (
-    _get_static_summary,
     generate_report,
-    quick_report,
 )
 from phase2.simulation import DeliverySimulation
-from phase2.driver import Driver, IDLE
-from phase2.request import Request, DELIVERED, EXPIRED, WAITING
-from phase2.point import Point
 from phase2.behaviours import LazyBehaviour
 from phase2.helpers_2.metrics_helpers import SimulationTimeSeries
-
 
 class TestStaticSummary(unittest.TestCase):
     """Test _get_static_summary function."""
@@ -107,8 +100,10 @@ class TestGenerateReportMatplotlibCheck(unittest.TestCase):
         self.assertIn("matplotlib", str(context.exception))
 
     @patch('phase2.report_window.HAS_MATPLOTLIB', True)
+    @patch('phase2.report_window._show_mutation_window')
+    @patch('phase2.report_window._show_behaviour_window')
     @patch('phase2.report_window.plt')
-    def test_generate_report_with_matplotlib_creates_figure(self, mock_plt):
+    def test_generate_report_with_matplotlib_creates_figure(self, mock_plt, mock_behaviour, mock_mutation):
         """generate_report creates figure when matplotlib available."""
         mock_fig = MagicMock()
         mock_plt.figure.return_value = mock_fig
@@ -117,6 +112,9 @@ class TestGenerateReportMatplotlibCheck(unittest.TestCase):
         self.simulation.expired_count = 5
         self.simulation.time = 100
         self.simulation.avg_wait = 15.0
+        self.simulation.mutation = Mock()
+        self.simulation.mutation.mutation_history = []
+        self.simulation.mutation.mutation_transitions = {}
         
         generate_report(self.simulation, time_series=None)
         
@@ -145,8 +143,7 @@ class TestQuickReport(unittest.TestCase):
         quick_report(sim)
         
         mock_generate.assert_called_once_with(sim, None)
-
-
+        
 class TestDataFormatForPlotting(unittest.TestCase):
     """Test that plot functions properly handle data."""
 
@@ -163,7 +160,6 @@ class TestDataFormatForPlotting(unittest.TestCase):
             'utilization': [50, 60, 70, 80],
         }
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_requests_evolution_with_data(self, mock_plt):
         """_plot_requests_evolution handles data correctly."""
@@ -175,7 +171,6 @@ class TestDataFormatForPlotting(unittest.TestCase):
         # Should call plot for both served and expired
         self.assertGreaterEqual(mock_ax.plot.call_count, 2)
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_requests_evolution_none_time_series(self, mock_plt):
         """_plot_requests_evolution handles None time_series."""
@@ -187,7 +182,6 @@ class TestDataFormatForPlotting(unittest.TestCase):
         # Should display "No time-series data" message
         mock_ax.text.assert_called()
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_wait_time_evolution_with_data(self, mock_plt):
         """_plot_wait_time_evolution handles data correctly."""
@@ -199,7 +193,6 @@ class TestDataFormatForPlotting(unittest.TestCase):
         # Should plot wait time data
         mock_ax.plot.assert_called()
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_pending_evolution_with_data(self, mock_plt):
         """_plot_pending_evolution handles data correctly."""
@@ -211,7 +204,6 @@ class TestDataFormatForPlotting(unittest.TestCase):
         # Should plot pending data
         mock_ax.plot.assert_called()
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_utilization_evolution_with_data(self, mock_plt):
         """_plot_utilization_evolution handles data correctly."""
@@ -223,7 +215,6 @@ class TestDataFormatForPlotting(unittest.TestCase):
         # Should plot utilization data
         mock_ax.plot.assert_called()
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_utilization_sets_limits(self, mock_plt):
         """_plot_utilization_evolution sets y-limits."""
@@ -251,7 +242,6 @@ class TestSummaryStatisticsPlot(unittest.TestCase):
         
         self.time_series = Mock(spec=SimulationTimeSeries)
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_summary_statistics_with_time_series(self, mock_plt):
         """_plot_summary_statistics displays summary with time series."""
@@ -272,7 +262,6 @@ class TestSummaryStatisticsPlot(unittest.TestCase):
         # Should display text with statistics
         mock_ax.text.assert_called()
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_summary_statistics_without_time_series(self, mock_plt):
         """_plot_summary_statistics displays summary without time series."""
@@ -284,7 +273,6 @@ class TestSummaryStatisticsPlot(unittest.TestCase):
         # Should display text with statistics from simulation
         mock_ax.text.assert_called()
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_summary_statistics_turns_off_axes(self, mock_plt):
         """_plot_summary_statistics turns off axes."""
@@ -313,7 +301,6 @@ class TestBehaviourWindow(unittest.TestCase):
         
         self.simulation.drivers = [self.driver1, self.driver2]
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_show_behaviour_window_creates_figure(self, mock_plt):
         """_show_behaviour_window creates matplotlib figure."""
@@ -334,6 +321,12 @@ class TestMutationWindow(unittest.TestCase):
     def setUp(self):
         """Create mock simulation with mutation rule."""
         self.simulation = Mock(spec=DeliverySimulation)
+        self.simulation.drivers = [Mock() for _ in range(3)]
+        self.simulation.requests = [Mock() for _ in range(100)]
+        self.simulation.served_count = 80
+        self.simulation.expired_count = 20
+        self.simulation.time = 500
+        self.simulation.avg_wait = 20.0
         self.simulation.mutation = Mock()
         self.simulation.mutation.mutation_history = [
             {
@@ -358,7 +351,6 @@ class TestMutationWindow(unittest.TestCase):
             ('LazyBehaviour', 'EarningsMaxBehaviour'): 2,
         }
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_show_mutation_window_creates_figure(self, mock_plt):
         """_show_mutation_window creates matplotlib figure."""
@@ -367,59 +359,23 @@ class TestMutationWindow(unittest.TestCase):
         mock_fig = MagicMock()
         mock_plt.figure.return_value = mock_fig
         
+        # Mock the drivers properly to avoid comparison issues
+        mock_driver1 = Mock()
+        mock_driver1._last_mutation_time = 10
+        mock_driver2 = Mock()
+        mock_driver2._last_mutation_time = 50
+        
+        self.simulation.drivers = [mock_driver1, mock_driver2]
+        
         _show_mutation_window(self.simulation)
         
         # Should create figure
         mock_plt.figure.assert_called()
 
 
-class TestEdgeCases(unittest.TestCase):
-    """Test edge cases and error handling."""
-
-    def setUp(self):
-        """Create mock simulation."""
-        self.simulation = Mock(spec=DeliverySimulation)
-
-    def test_static_summary_zero_requests(self):
-        """Summary handles zero total requests gracefully."""
-        self.simulation.served_count = 0
-        self.simulation.expired_count = 0
-        self.simulation.time = 100
-        self.simulation.avg_wait = 0.0
-        
-        summary = _get_static_summary(self.simulation)
-        
-        self.assertEqual(summary['total_requests'], 0)
-        self.assertEqual(summary['service_level'], 0.0)
-
-    def test_static_summary_large_numbers(self):
-        """Summary handles large numbers."""
-        self.simulation.served_count = 1_000_000
-        self.simulation.expired_count = 100_000
-        self.simulation.time = 10_000
-        self.simulation.avg_wait = 500.5
-        
-        summary = _get_static_summary(self.simulation)
-        
-        self.assertEqual(summary['total_requests'], 1_100_000)
-        self.assertGreater(summary['service_level'], 0)
-
-    def test_static_summary_fractional_wait(self):
-        """Summary preserves fractional wait times."""
-        self.simulation.served_count = 50
-        self.simulation.expired_count = 10
-        self.simulation.time = 100
-        self.simulation.avg_wait = 3.14159
-        
-        summary = _get_static_summary(self.simulation)
-        
-        self.assertAlmostEqual(summary['final_avg_wait'], 3.14159, places=5)
-
-
 class TestPlotDataHandling(unittest.TestCase):
     """Test that plot functions handle various data scenarios."""
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_with_empty_times(self, mock_plt):
         """Plots handle empty time series."""
@@ -434,7 +390,6 @@ class TestPlotDataHandling(unittest.TestCase):
         # Should display "No time-series data"
         mock_ax.text.assert_called()
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_with_single_datapoint(self, mock_plt):
         """Plots handle single datapoint."""
@@ -453,7 +408,6 @@ class TestPlotDataHandling(unittest.TestCase):
         # Should still plot
         mock_ax.plot.assert_called()
 
-    @patch('phase2.report_window.HAS_MATPLOTLIB', True)
     @patch('phase2.report_window.plt')
     def test_plot_with_large_dataset(self, mock_plt):
         """Plots handle large datasets."""

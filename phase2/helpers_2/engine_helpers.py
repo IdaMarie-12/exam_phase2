@@ -1,98 +1,12 @@
-"""
-Engine Helper Functions - 9-Step Orchestration and State Conversion
-
-This module implements the 9-step simulation loop that powers DeliverySimulation.tick().
-Each function represents one step in the discrete-time event orchestration.
-
-COMPLEXITY ANALYSIS (Big O Notation)
-====================================
-
-Big O describes how an algorithm scales with input size:
-
-    O(1)     - Constant: Same time regardless of input (e.g., accessing dict key)
-    O(log N) - Logarithmic: Scales with log of N (e.g., binary search)
-    O(N)     - Linear: Scales proportionally with N (e.g., loop through all items)
-    O(N log N)- Linearithmic: N * log(N), common in sorting
-    O(N²)    - Quadratic: Scales with N squared (nested loops)
-    O(D*R)   - Special: D=drivers, R=requests (product of two variables)
-
-Example: If you have 10 drivers and 100 requests:
-    O(D)     → 10 operations
-    O(R)     → 100 operations
-    O(D*R)   → 1000 operations
-    O(D*R*log(D*R)) → 10 * 100 * log(1000) ≈ 10,000 operations
-
-
-METHODS USED IN HELPERS
-=======================
-
-1. ITERATION (for loops)
-   - Loop through all items: for item in items → O(N)
-   - Nested loops: for x in list1: for y in list2 → O(N²) or O(D*R)
-   - Example: collect_offers() loops through proposals → O(P) where P=proposals
-
-2. SORTING
-   - sort() uses Timsort (O(N log N) worst case)
-   - Python's built-in sort is stable and efficient
-   - Example: resolve_conflicts() sorts offers per request → O(O log O)
-
-3. DICTIONARY/DEFAULTDICT
-   - Insert, lookup, delete: O(1) average case
-   - Useful for grouping items by key: defaultdict(list)
-   - Example: resolve_conflicts() groups offers by request ID → O(1) grouping + O(N log N) sorting
-
-4. LIST OPERATIONS
-   - append(): O(1) amortized
-   - extend(): O(M) where M is items to add
-   - access by index: O(1)
-   - Example: gen_requests() uses extend() → O(R) for R new requests
-
-5. FILTERING
-   - List comprehensions or if statements: O(N) to scan through
-   - Example: collect_offers() filters proposals: for d, r in proposals → O(P)
-
-6. CONDITIONAL CHECKS
-   - if statements: O(1) per check
-   - isinstance(), type() comparison: O(1)
-   - Example: collect_offers() type-checks proposals → O(1) per check, O(P) total
-
-
-9-STEP ORCHESTRATION BREAKDOWN
-===============================
-
-Step 1: gen_requests()           - O(R) where R = new requests generated
-Step 2: expire_requests()        - O(R) where R = total requests in system
-Step 3: get_proposals()          - O(D*R) or O(D*R*log(D*R)) depending on policy
-Step 4: collect_offers()         - O(P) where P = proposals (at most D*R)
-Step 5: resolve_conflicts()      - O(O log O) where O = accepted offers
-Step 6: assign_requests()        - O(A) where A = finalized assignments
-Step 7: move_drivers()           - O(D) where D = active drivers
-        + handle_pickup()        - O(1) per driver
-        + handle_dropoff()       - O(1) per driver
-Step 8: mutate_drivers()         - O(D) or O(D*M) where M = mutation cost
-Step 9: time increment           - O(1)
-
-Total per tick: O(D*R*log(D*R) + D + R)
-With typical params (D~10, R~100): ~10,000 operations per tick
-
-
-WHEN TO USE WHICH METHOD
-========================
-
-Use O(N) loops when:        You need to check every item exactly once
-Use O(N²) loops when:       You need all pairs or nested checking
-Use dictionaries when:      You need fast lookups or grouping by key
-Use sorting when:           You need items in specific order (O(N log N))
-Use filtering when:         You need a subset of items (O(N) to scan)
-Use constants when:         Operation is always the same cost regardless of input
-
-"""
+from __future__ import annotations
+from typing import Any, Optional
 
 from ..request import Request, WAITING, ASSIGNED, PICKED, EXPIRED
 from ..offer import Offer
 from ..point import Point
 from ..driver import Driver
 from ..behaviours import LazyBehaviour, GreedyDistanceBehaviour, EarningsMaxBehaviour
+from ..mutation import GREEDY_MAX_DISTANCE, EARNINGS_MIN_REWARD_PER_TIME, LAZY_IDLE_TICKS_NEEDED
 import random
 
 
@@ -101,25 +15,15 @@ import random
 # ====================================================================
 
 def _assign_random_behaviour() -> "DriverBehaviour":
-    """Randomly assign one of three driver behaviours.
-    
-    Returns:
-        DriverBehaviour: One of GreedyDistanceBehaviour, EarningsMaxBehaviour, or LazyBehaviour
-        chosen with equal probability (1/3 each).
-        
-    Example:
-        >>> behaviour = _assign_random_behaviour()
-        >>> type(behaviour).__name__ in ["GreedyDistanceBehaviour", "EarningsMaxBehaviour", "LazyBehaviour"]
-        True
-    """
+    """Randomly assign one of three driver behaviours."""
     choice = random.choice(["greedy", "earnings", "lazy"])
     
     if choice == "greedy":
-        return GreedyDistanceBehaviour(max_distance=10.0)
+        return GreedyDistanceBehaviour(max_distance=GREEDY_MAX_DISTANCE)
     elif choice == "earnings":
-        return EarningsMaxBehaviour(min_reward_per_time=0.8)
+        return EarningsMaxBehaviour(min_reward_per_time=EARNINGS_MIN_REWARD_PER_TIME)
     else:  # choice == "lazy"
-        return LazyBehaviour(idle_ticks_needed=5)
+        return LazyBehaviour(idle_ticks_needed=LAZY_IDLE_TICKS_NEEDED)
 
 
 def create_driver_from_dict(d_dict: dict, idx: int = 0) -> "Driver":
@@ -203,7 +107,22 @@ def get_plot_data_from_state(state: dict):
 # ====================================================================
 
 def gen_requests(simulation):
-    """Generate new requests via request_generator.maybe_generate(). O(R)."""
+    """Generate new requests via request_generator.maybe_generate(), and inject pre-loaded CSV requests. O(R)."""
+    # First, check if there are pre-loaded CSV requests waiting to arrive
+    if hasattr(simulation, '_all_csv_requests') and hasattr(simulation, '_csv_requests_index'):
+        csv_idx = simulation._csv_requests_index
+        while csv_idx < len(simulation._all_csv_requests):
+            req = simulation._all_csv_requests[csv_idx]
+            if req.creation_time <= simulation.time:
+                # Request has arrived, add it
+                simulation.requests.append(req)
+                csv_idx += 1
+            else:
+                # Requests are ordered by creation_time, so we can stop here
+                break
+        simulation._csv_requests_index = csv_idx
+    
+    # Then, generate stochastic requests via the generator
     new_reqs = simulation.request_generator.maybe_generate(simulation.time)
     if new_reqs:
         simulation.requests.extend(new_reqs)
@@ -244,7 +163,7 @@ def collect_offers(simulation, proposals):
 
 
 def resolve_conflicts(simulation, offers):
-    """Group offers by request, keep only nearest driver per request. O(O*log O)."""
+    """Group offers by request, keep only closest driver per request (by distance). O(O*log O)."""
     if not isinstance(offers, list):
         raise TypeError(f"offers must be list, got {type(offers).__name__}")
     
@@ -254,7 +173,8 @@ def resolve_conflicts(simulation, offers):
         grouped[o.request.id].append(o)
     final = []
     for same_req in grouped.values():
-        same_req.sort(key=lambda o: o.driver.position.distance_to(o.request.pickup))
+        # Sort by distance (ascending - closest first)
+        same_req.sort(key=lambda o: o.pickup_distance())
         final.append(same_req[0])
     return final
 
