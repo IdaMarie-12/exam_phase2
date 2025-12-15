@@ -8,15 +8,16 @@ EPSILON = 1e-9
 
 @dataclass(frozen=True)
 class Point:
-    """A 2D point representing a position on the map with vector operations.
-    Immutable and hashable. Supports distance_to(), +, -, *, and in-place operators.
+    """2D point representing a location on the map with vector operations.
+    Immutable and hashable with epsilon-tolerant equality. Supports distance, addition, subtraction,
+    scalar multiplication, and in-place operators.
     """
     x: float 
     y: float
 
 
     def distance_to(self, other: "Point") -> float:
-        """Return Euclidean distance to another point."""
+        # Return Euclidean distance to another point.
         if not isinstance(other, Point):
             raise TypeError(f"distance_to() requires a Point, got {type(other).__name__}")
         

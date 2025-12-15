@@ -9,12 +9,16 @@ from .helpers_2.engine_helpers import (
 EPSILON = 1e-3
 MIN_SPEED = 1e-6
 
+"""Orchestrates the 9-step delivery simulation with drivers, requests, and policies.
+Maintains persistent state and coordinates dispatch decisions, behavior adaptation, and driver movement.
+Deterministic tick cycle ensures reproducible simulation outcomes for analysis and testing.
+"""
 
 class DeliverySimulation:
     """Main delivery simulation orchestrator with persistent state and policy-driven dispatch."""
 
     def __init__(self, drivers, dispatch_policy, request_generator, mutation_rule, timeout=20):
-        """Initialize with drivers, policy, generator, mutation rule, and timeout."""
+        # Initialize with drivers, policy, generator, mutation rule, and timeout.
         if not drivers:
             raise ValueError("DeliverySimulation requires at least one driver")
         if timeout < 0:
@@ -42,23 +46,23 @@ class DeliverySimulation:
 
     def tick(self):
         """Run one simulation tick (9 phases): generate, expire, propose, collect, resolve, assign, move, mutate, increment time."""
-        # Phase 1: Generate new requests via stochastic process
+        # step 1: Generate new requests via stochastic process
         gen_requests(self)
-        # Phase 2: Expire old requests (age >= timeout)
+        # step 2: Expire old requests (age >= timeout)
         expire_requests(self)
-        # Phase 3: Policy proposes driver-request pairs
+        # step 3: Policy proposes driver-request pairs
         proposals = get_proposals(self)
-        # Phase 4: Drivers accept/reject via behaviour evaluation
+        # step 4: Drivers accept/reject via behaviour evaluation
         offers = collect_offers(self, proposals)
-        # Phase 5: Resolve conflicts (one driver per request, nearest wins)
+        # step 5: Resolve conflicts (one driver per request, nearest wins)
         final = resolve_conflicts(self, offers)
-        # Phase 6: Finalize assignments (update statuses, link objects)
+        # step 6: Finalize assignments (update statuses, link objects)
         assign_requests(self, final)
-        # Phase 7: Move drivers toward destinations, handle arrivals
+        # step 7: Move drivers toward destinations, handle arrivals
         move_drivers(self)
-        # Phase 8: Apply behaviour mutations if configured
+        # step 8: Apply behaviour mutations if configured
         mutate_drivers(self)
-        # Phase 9: Increment global time
+        # step 9: Increment global time
         self.time += 1
 
 
@@ -66,7 +70,7 @@ class DeliverySimulation:
     # Statistics and Snapshots
 
     def get_snapshot(self):
-        """Return a JSON-serializable snapshot."""
+        """Returns JSON-serializable state including driver positions, requests, and metrics."""
         return {
             "time": self.time,
             "drivers": [

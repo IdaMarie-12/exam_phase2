@@ -7,8 +7,10 @@ if TYPE_CHECKING:
 
 """Driver behaviour strategies for offer acceptance decisions.
 Implements three behaviour classes: GreedyDistanceBehaviour, EarningsMaxBehaviour, and LazyBehaviour.
-Each defines accept/reject logic based on distance, earnings efficiency, or idle time constraints."""
+Each defines accept/reject logic based on distance, earnings efficiency, or idle time constraints.
+"""
 
+# ====================================================================
 # BEHAVIOUR PARAMETERS and CONSTANTS
 
 # LazyBehaviour: Maximum acceptable distance to pickup location
@@ -20,12 +22,12 @@ class DriverBehaviour(ABC):
 
     @abstractmethod
     def decide(self, driver: "Driver", offer: "Offer", time: int) -> bool:
-        """Decide whether driver accepts the offer."""
+        # Decide whether driver accepts the offer.
         raise NotImplementedError("Subclasses must implement decide()")
 
 
 class GreedyDistanceBehaviour(DriverBehaviour):
-    """Accept offers with pickup distance <= max_distance threshold."""
+    # Accept offers with pickup distance <= max_distance threshold.
 
     def __init__(self, max_distance: float):
         """Initialize greedy distance behaviour."""
@@ -55,7 +57,7 @@ class EarningsMaxBehaviour(DriverBehaviour):
     """
 
     def __init__(self, min_reward_per_time: float):
-        """Initialize earnings maximization behaviour."""
+        # Initialize earnings maximization behaviour.
         if min_reward_per_time < 0:
             raise ValueError(f"min_reward_per_time must be non-negative, got {min_reward_per_time}")
         self.threshold = min_reward_per_time
@@ -82,13 +84,13 @@ class LazyBehaviour(DriverBehaviour):
     """
 
     def __init__(self, idle_ticks_needed: int):
-        """Initialize lazy behaviour."""
+        # Initialize lazy behaviour.
         if idle_ticks_needed < 0:
             raise ValueError(f"idle_ticks_needed must be non-negative, got {idle_ticks_needed}")
         self.idle_ticks_needed = idle_ticks_needed
 
     def decide(self, driver: "Driver", offer: "Offer", time: int) -> bool:
-        """Accept only if idle >= min_ticks AND pickup distance < 5.0."""
+        # Accept only if idle >= min_ticks AND pickup distance < 5.0.
         from .driver import Driver as DriverClass
         from .offer import Offer as OfferClass
         

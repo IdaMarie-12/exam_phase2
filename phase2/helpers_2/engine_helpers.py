@@ -13,9 +13,13 @@ import random
 # ====================================================================
 # DICT <-> OBJECT CONVERSION HELPERS (for adapter)
 # ====================================================================
+"""Bidirectional conversion between dict and domain objects for adapter communication.
+Enables serialization of drivers, requests, and state for GUI transmission and deserialization
+from CSV/JSON sources. Handles validation and default values during conversion.
+"""
 
 def _assign_random_behaviour() -> "DriverBehaviour":
-    """Randomly assign one of three driver behaviours."""
+    """Randomly assigns one of three driver behaviour strategies."""
     choice = random.choice(["greedy", "earnings", "lazy"])
     
     if choice == "greedy":
@@ -27,15 +31,7 @@ def _assign_random_behaviour() -> "DriverBehaviour":
 
 
 def create_driver_from_dict(d_dict: dict, idx: int = 0) -> "Driver":
-    """Convert a driver dict to a Driver object. O(1).
-    
-    Args:
-        d_dict: Dict with keys 'x', 'y', optionally 'id', 'speed'.
-        idx: Fallback id if 'id' not in dict.
-    
-    Returns:
-        Driver object with randomly assigned behaviour.
-    """
+    """Converts driver dict to Driver object with random behaviour assignment."""
     return Driver(
         id=d_dict.get("id", idx),
         position=Point(d_dict["x"], d_dict["y"]),
@@ -45,15 +41,7 @@ def create_driver_from_dict(d_dict: dict, idx: int = 0) -> "Driver":
 
 
 def create_request_from_dict(r_dict: dict) -> "Request":
-    """Convert a request dict to a Request object. O(1).
-    
-    Args:
-        r_dict: Dict with keys 'id', 'px', 'py', 'dx', 'dy', 
-                and optionally 'creation_time' or 't'.
-    
-    Returns:
-        Request object.
-    """
+    """Converts request dict to Request object, handling creation time variants."""
     creation_time = r_dict.get("creation_time", r_dict.get("t", 0))
     return Request(
         id=r_dict["id"],
@@ -64,7 +52,7 @@ def create_request_from_dict(r_dict: dict) -> "Request":
 
 
 def request_to_dict(req: "Request") -> dict:
-    """Convert a Request object to a dict for GUI. O(1)."""
+    """Converts Request object to JSON-serializable dict for GUI transmission."""
     return {
         "id": req.id,
         "px": req.pickup.x,
@@ -75,15 +63,16 @@ def request_to_dict(req: "Request") -> dict:
     }
 
 
+# ====================================================================
+# ADAPTER VISUALIZATION HELPERS (for GUI display)
+# ====================================================================
+"""Transforms simulation state into visualization-ready coordinate tuples.
+Extracts driver positions, pickup/dropoff locations, and request status for rendering on the map.
+Handles state serialization and coordinate extraction for real-time GUI updates.
+"""
+
 def get_plot_data_from_state(state: dict):
-    """Extract plot-ready tuples from state dict. O(D+R).
-    
-    Args:
-        state: State dict with 'drivers' and 'pending' keys.
-    
-    Returns:
-        (drivers_xy, pickup_xy, dropoff_xy, dir_quiver) tuples.
-    """
+    """Extracts plotting coordinates from state dict for visualization."""
     drivers = state.get("drivers", [])
     pending = state.get("pending", [])
 
@@ -105,12 +94,10 @@ def get_plot_data_from_state(state: dict):
 # ====================================================================
 # SIMULATION HELPER METHODS (from DeliverySimulation class)
 # ====================================================================
-
-"""Simulation orchestration helpers for the 9-phase delivery tick cycle.
+"""Orchestration helpers for the 9-phase delivery tick cycle.
 Implements request generation, expiration, proposal dispatch, offer collection, conflict resolution,
 assignment, driver movement, and behaviour mutation across all drivers and requests.
 """
-
 
 def gen_requests(simulation):
     """Generates new requests from generator and CSV sources, injecting on schedule."""
