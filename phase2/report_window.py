@@ -434,15 +434,14 @@ def _plot_mutation_reasons_evolution(ax, time_series: Optional[SimulationTimeSer
     
     all_reasons = sorted(list(all_reasons))
     
-    # Build cumulative data for each reason
+    # Build data for each reason over time (already cumulative in source)
     reason_series = {reason: [] for reason in all_reasons}
-    cumulative_counts = {reason: 0 for reason in all_reasons}
     
     for reason_dict in time_series.mutation_reasons:
         for reason in all_reasons:
+            # reason_dict already contains cumulative count from start
             count = reason_dict.get(reason, 0)
-            cumulative_counts[reason] += count
-            reason_series[reason].append(cumulative_counts[reason])
+            reason_series[reason].append(count)
     
     # Plot stacked area
     labels = [reason_labels.get(r, r) for r in all_reasons]
