@@ -1,4 +1,7 @@
+"""Post-simulation metrics visualization with 3 interactive windows."""
+
 from typing import Optional
+
 from .helpers_2.metrics_helpers import (
     SimulationTimeSeries, get_behaviour_distribution, PLOT_COLOURS,
     format_summary_statistics, format_behaviour_statistics,
@@ -10,12 +13,19 @@ import matplotlib.gridspec as gridspec
 
 
 def generate_report(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Show metrics, behaviour, and mutation analysis windows for a completed simulation."""
+    """Generate 3 matplotlib windows: metrics, behaviour analysis, and mutation analysis.
     
+    Args:
+        simulation: Completed DeliverySimulation instance
+        time_series: Optional SimulationTimeSeries with recorded metrics
+    """
+    
+    # ====================================================================
     # Create all 3 windows
-    _show_mutation_window(simulation, time_series)
-    _show_behaviour_window(simulation, time_series) 
-    _show_metrics_window(simulation, time_series) 
+    # ====================================================================
+    _show_mutation_window(simulation, time_series) # window 3
+    _show_behaviour_window(simulation, time_series) # window 2
+    _show_metrics_window(simulation, time_series) # window 1
     
     # Display all windows and wait for user to close them
     print("\n Report windows opened. Close the windows to continue.")
@@ -27,7 +37,7 @@ def generate_report(simulation, time_series: Optional[SimulationTimeSeries] = No
 # ====================================================================
 
 def _plot_time_series(ax, times, data, label, color, title, ylabel, fill=False):
-    """Plot a time-series line with optional fill."""
+    """Plot time-series line with optional fill."""
     if times is None or len(times) == 0:
         ax.text(0.5, 0.5, 'No data available', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
@@ -68,7 +78,7 @@ def _plot_requests_evolution(ax, time_series: Optional[SimulationTimeSeries]) ->
 
 
 def _plot_wait_time_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot average wait time trend over the simulation."""
+    """Plot average wait time trend over simulation."""
     if time_series is None or not time_series.times:
         ax.text(0.5, 0.5, 'No time-series data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
@@ -81,7 +91,7 @@ def _plot_wait_time_evolution(ax, time_series: Optional[SimulationTimeSeries]) -
 
 
 def _plot_pending_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot the number of pending (unserved) requests over time."""
+    """Plot number of pending (unserved) requests over time."""
     if time_series is None or not time_series.times:
         ax.text(0.5, 0.5, 'No time-series data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
@@ -94,7 +104,7 @@ def _plot_pending_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> 
 
 
 def _plot_utilization_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot driver utilization percentage over time."""
+    """Plot driver utilization (% busy) over time."""
     if time_series is None or not time_series.times:
         ax.text(0.5, 0.5, 'No time-series data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
@@ -110,7 +120,7 @@ def _plot_utilization_evolution(ax, time_series: Optional[SimulationTimeSeries])
 
 
 def _plot_behaviour_distribution_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot behaviour distribution evolution as a stacked area chart."""
+    """Plot behaviour distribution evolution as stacked area chart."""
     if time_series is None or not time_series.behaviour_distribution:
         ax.text(0.5, 0.5, 'No behaviour data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
@@ -155,7 +165,7 @@ def _plot_mutations_and_stagnation(ax, time_series: Optional[SimulationTimeSerie
     if time_series is None or not time_series.behaviour_mutations:
         ax.text(0.5, 0.5, 'No mutation/stagnation data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Mutations & Stagnation Trends')
+        ax.set_title('Mutations & Earnings Stagnation Events')
         return
     
     ax2 = ax.twinx()
@@ -166,18 +176,18 @@ def _plot_mutations_and_stagnation(ax, time_series: Optional[SimulationTimeSerie
     ax.fill_between(time_series.times, time_series.behaviour_mutations, 
                     alpha=0.2, color='red')
     
-    # Plot stagnation as line on secondary axis
-    ax2.plot(time_series.times, time_series.behaviour_stagnation,
-             linewidth=2, color='blue', marker='s', markersize=3, label='Stagnant Drivers')
-    ax2.fill_between(time_series.times, time_series.behaviour_stagnation,
-                     alpha=0.2, color='blue')
+    # Plot earnings stagnation events as line on secondary axis
+    ax2.plot(time_series.times, time_series.earnings_stagnation_events,
+             linewidth=2, color='orange', marker='s', markersize=3, label='Earnings Stagnation Events')
+    ax2.fill_between(time_series.times, time_series.earnings_stagnation_events,
+                     alpha=0.2, color='orange')
     
     ax.set_xlabel('Simulation Time (ticks)')
     ax.set_ylabel('Cumulative Mutations', color='red')
-    ax2.set_ylabel('Stagnant Drivers', color='blue')
-    ax.set_title('Mutations & Stagnation Trends')
+    ax2.set_ylabel('Earnings Stagnation Events', color='orange')
+    ax.set_title('Mutations & Earnings Stagnation Events')
     ax.tick_params(axis='y', labelcolor='red')
-    ax2.tick_params(axis='y', labelcolor='blue')
+    ax2.tick_params(axis='y', labelcolor='orange')
     ax.grid(True, alpha=0.3)
     
     # Combine legends
@@ -187,19 +197,23 @@ def _plot_mutations_and_stagnation(ax, time_series: Optional[SimulationTimeSerie
 
 
 def _plot_summary_statistics(ax, simulation, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Display final simulation summary statistics as a text block."""
+    """Display final simulation summary statistics as text."""
     ax.axis('off')
     stats_text = format_summary_statistics(simulation, time_series)
     ax.text(0.1, 0.95, stats_text, transform=ax.transAxes, 
             fontsize=10, verticalalignment='top', family='monospace',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
+
+
+
+
 # ====================================================================
 # BEHAVIOUR & MUTATION ANALYSIS WINDOWS
 # ====================================================================
 
 def _show_metrics_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Show window with simulation metrics plots."""
+    """Display window with simulation metrics plots."""
     fig1 = plt.figure(num=1, figsize=(16, 13))
     fig1.suptitle('Post-Simulation Metrics Report', fontsize=16, fontweight='bold')
     
@@ -228,7 +242,7 @@ def _show_metrics_window(simulation, time_series: Optional[SimulationTimeSeries]
 
 
 def _show_behaviour_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Show window with behaviour distribution plots and statistics."""
+    """Display window with behaviour distribution plots and statistics."""
     
     # Create figure with 3 rows if we have time-series data, 2 rows otherwise
     num_rows = 3 if (time_series and time_series.behaviour_distribution) else 2
@@ -291,7 +305,7 @@ def _show_mutation_window(simulation, time_series: Optional[SimulationTimeSeries
     """Show window with mutation rule configuration and stagnation analysis."""
     
     fig3 = plt.figure(num=3, figsize=(16, 12))
-    fig3.suptitle('Mutation Rule & Stagnation Analysis', fontsize=14, fontweight='bold')
+    fig3.suptitle('Mutation Rule & Earnings Stagnation Analysis', fontsize=14, fontweight='bold')
     
     # Create grid with 2 rows if time-series available, 1 row otherwise
     num_rows = 2 if (time_series and time_series.behaviour_mutations) else 1

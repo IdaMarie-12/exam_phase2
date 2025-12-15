@@ -1,8 +1,12 @@
+from __future__ import annotations
+from typing import Any, Optional
+
 from ..request import Request, WAITING, ASSIGNED, PICKED, EXPIRED
 from ..offer import Offer
 from ..point import Point
 from ..driver import Driver
 from ..behaviours import LazyBehaviour, GreedyDistanceBehaviour, EarningsMaxBehaviour
+from ..mutation import GREEDY_MAX_DISTANCE, EARNINGS_MIN_REWARD_PER_TIME, LAZY_IDLE_TICKS_NEEDED
 import random
 
 
@@ -15,15 +19,23 @@ def _assign_random_behaviour() -> "DriverBehaviour":
     choice = random.choice(["greedy", "earnings", "lazy"])
     
     if choice == "greedy":
-        return GreedyDistanceBehaviour(max_distance=10.0)
+        return GreedyDistanceBehaviour(max_distance=GREEDY_MAX_DISTANCE)
     elif choice == "earnings":
-        return EarningsMaxBehaviour(min_reward_per_time=1.0)
+        return EarningsMaxBehaviour(min_reward_per_time=EARNINGS_MIN_REWARD_PER_TIME)
     else:  # choice == "lazy"
-        return LazyBehaviour(idle_ticks_needed=5)
+        return LazyBehaviour(idle_ticks_needed=LAZY_IDLE_TICKS_NEEDED)
 
 
 def create_driver_from_dict(d_dict: dict, idx: int = 0) -> "Driver":
-    """Convert a driver dict to a Driver object."""
+    """Convert a driver dict to a Driver object. O(1).
+    
+    Args:
+        d_dict: Dict with keys 'x', 'y', optionally 'id', 'speed'.
+        idx: Fallback id if 'id' not in dict.
+    
+    Returns:
+        Driver object with randomly assigned behaviour.
+    """
     return Driver(
         id=d_dict.get("id", idx),
         position=Point(d_dict["x"], d_dict["y"]),
@@ -33,7 +45,15 @@ def create_driver_from_dict(d_dict: dict, idx: int = 0) -> "Driver":
 
 
 def create_request_from_dict(r_dict: dict) -> "Request":
-    """Convert a request dict to a Request object."""
+    """Convert a request dict to a Request object. O(1).
+    
+    Args:
+        r_dict: Dict with keys 'id', 'px', 'py', 'dx', 'dy', 
+                and optionally 'creation_time' or 't'.
+    
+    Returns:
+        Request object.
+    """
     creation_time = r_dict.get("creation_time", r_dict.get("t", 0))
     return Request(
         id=r_dict["id"],
@@ -44,7 +64,7 @@ def create_request_from_dict(r_dict: dict) -> "Request":
 
 
 def request_to_dict(req: "Request") -> dict:
-    """Convert a Request object to a dict for GUI."""
+    """Convert a Request object to a dict for GUI. O(1)."""
     return {
         "id": req.id,
         "px": req.pickup.x,
@@ -56,7 +76,14 @@ def request_to_dict(req: "Request") -> dict:
 
 
 def get_plot_data_from_state(state: dict):
-    """Extract plot-ready tuples from state dict."""
+    """Extract plot-ready tuples from state dict. O(D+R).
+    
+    Args:
+        state: State dict with 'drivers' and 'pending' keys.
+    
+    Returns:
+        (drivers_xy, pickup_xy, dropoff_xy, dir_quiver) tuples.
+    """
     drivers = state.get("drivers", [])
     pending = state.get("pending", [])
 
@@ -80,7 +107,7 @@ def get_plot_data_from_state(state: dict):
 # ====================================================================
 
 def gen_requests(simulation):
-    """Generate new requests via request_generator.maybe_generate, and inject pre-loaded CSV requests."""
+    """Generate new requests via request_generator.maybe_generate(), and inject pre-loaded CSV requests. O(R)."""
     # First, check if there are pre-loaded CSV requests waiting to arrive
     if hasattr(simulation, '_all_csv_requests') and hasattr(simulation, '_csv_requests_index'):
         csv_idx = simulation._csv_requests_index
@@ -91,6 +118,7 @@ def gen_requests(simulation):
                 simulation.requests.append(req)
                 csv_idx += 1
             else:
+                # Requests are ordered by creation_time, so we can stop here
                 break
         simulation._csv_requests_index = csv_idx
     
@@ -101,7 +129,7 @@ def gen_requests(simulation):
 
 
 def expire_requests(simulation):
-    """Mark WAITING requests as EXPIRED if age > timeout. Increment expired_count."""
+    """Mark WAITING requests as EXPIRED if age > timeout. Increment expired_count. O(R)."""
     for r in simulation.requests:
         if r.status == WAITING and (simulation.time - r.creation_time) > simulation.timeout:
             r.mark_expired(simulation.time)
@@ -109,12 +137,12 @@ def expire_requests(simulation):
 
 
 def get_proposals(simulation):
-    """Get driver-request pairs from dispatch_policy.assign."""
+    """Get driver-request pairs from dispatch_policy.assign(). O(D*R)."""
     return simulation.dispatch_policy.assign(simulation.drivers, simulation.requests, simulation.time)
 
 
 def collect_offers(simulation, proposals):
-    """Convert proposals to offers, apply behaviour.decide logic."""
+    """Convert proposals to offers, apply behaviour.decide() logic. O(P)."""
     if not isinstance(proposals, list):
         raise TypeError(f"proposals must be list, got {type(proposals).__name__}")
     
@@ -135,7 +163,7 @@ def collect_offers(simulation, proposals):
 
 
 def resolve_conflicts(simulation, offers):
-    """Group offers by request, keep only nearest driver per request."""
+    """Group offers by request, keep only nearest driver per request. O(O*log O)."""
     if not isinstance(offers, list):
         raise TypeError(f"offers must be list, got {type(offers).__name__}")
     
@@ -151,14 +179,14 @@ def resolve_conflicts(simulation, offers):
 
 
 def assign_requests(simulation, final):
-    """Assign drivers to requests (if WAITING + IDLE). Call driver.assign_request."""
+    """Assign drivers to requests (if WAITING + IDLE). Call driver.assign_request(). O(A)."""
     for o in final:
         if o.request.status == WAITING and o.driver.status == "IDLE":
             o.driver.assign_request(o.request, simulation.time)
 
 
 def move_drivers(simulation):
-    """Move active drivers toward target. Detect arrivals (distance < EPSILON)."""
+    """Move active drivers toward target. Detect arrivals (distance < EPSILON). O(D)."""
     EPSILON = 1e-3
     
     for d in simulation.drivers:
@@ -175,12 +203,12 @@ def move_drivers(simulation):
 
 
 def handle_pickup(simulation, driver):
-    """Mark request as picked up. Call driver.complete_pickup."""
+    """Mark request as picked up. Call driver.complete_pickup(). O(1)."""
     driver.complete_pickup(simulation.time)
 
 
 def handle_dropoff(simulation, driver):
-    """Complete delivery. Record earnings & wait time. Increment served_count."""
+    """Complete delivery. Record earnings & wait time. Increment served_count. O(1)."""
     driver.complete_dropoff(simulation.time)
     last = driver.history[-1]
     beh = type(driver.behaviour).__name__ if driver.behaviour else "None"
@@ -193,7 +221,7 @@ def handle_dropoff(simulation, driver):
 
 
 def mutate_drivers(simulation):
-    """Apply mutation_rule.maybe_mutate to each driver."""
+    """Apply mutation_rule.maybe_mutate() to each driver. O(D)."""
     if simulation.mutation_rule is not None and not hasattr(simulation.mutation_rule, 'maybe_mutate'):
         raise TypeError(f"mutation_rule must have maybe_mutate() method, got {type(simulation.mutation_rule).__name__}")
     
@@ -209,7 +237,7 @@ def mutate_drivers(simulation):
 # ====================================================================
 
 def sim_to_state_dict(simulation):
-    """Convert simulation to GUI state dict."""
+    """Convert simulation to GUI state dict. O(D+R)."""
     snap = simulation.get_snapshot()
     
     return {
@@ -234,7 +262,7 @@ def sim_to_state_dict(simulation):
 
 
 def get_adapter_metrics(simulation):
-    """Extract metrics dict (served, expired, avg_wait) for GUI."""
+    """Extract metrics dict (served, expired, avg_wait) for GUI. O(1)."""
     return {
         "served": simulation.served_count,
         "expired": simulation.expired_count,

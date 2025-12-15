@@ -41,11 +41,19 @@ class SimulationTimeSeries:
         # Behaviour tracking
         self.behaviour_distribution = []  # List of dicts tracking behaviour counts
         self.behaviour_mutations = []      # List tracking cumulative mutations per tick
-        self.behaviour_stagnation = []     # List tracking drivers stable in same behaviour
+        self.behaviour_stability = []      # List tracking drivers stable in same behaviour (no change)
+        self.earnings_stagnation_events = []  # List tracking drivers with earnings stagnation (70% within ±5%)
         
         # Internal state tracking
         self._previous_behaviours = {}  # Map of driver_id -> behaviour_type
         self._total_mutations = 0       # Cumulative mutation counter
+        self._mutation_reason_counts = {
+            'performance_low_earnings': 0,
+            'performance_high_earnings': 0,
+            'exit_greedy': 0,
+            'exit_earnings': 0,
+            'stagnation_exploration': 0
+        }  # Breakdown of mutations by reason
     
     def record_tick(self, simulation):
         """Capture current simulation state including behaviour changes."""
@@ -103,9 +111,9 @@ class SimulationTimeSeries:
                 f"Ensure all drivers have 'id' and 'behaviour' attributes."
             )
         
-        # Count mutations (behaviour changes) and stagnation (no change)
+        # Count mutations (behaviour changes) and stability (no change)
         mutations_this_tick = 0
-        stagnant_count = 0
+        stable_count = 0
         
         for driver_id, current_behaviour in current_behaviours.items():
             if driver_id in self._previous_behaviours:
@@ -114,20 +122,72 @@ class SimulationTimeSeries:
                     mutations_this_tick += 1
                     self._total_mutations += 1
                 else:
-                    stagnant_count += 1
+                    stable_count += 1
         
         # Count behaviour distribution
         behaviour_counts = defaultdict(int)
         for behaviour_type in current_behaviours.values():
             behaviour_counts[behaviour_type] += 1
         
+        # Track earnings stagnation events from mutation rule
+        earnings_stagnation_count = self._count_earnings_stagnation_events(simulation)
+        
+        # Track mutation reasons from mutation rule
+        self._track_mutation_reasons(simulation)
+        
         # Record metrics
         self.behaviour_distribution.append(dict(behaviour_counts))
         self.behaviour_mutations.append(self._total_mutations)
-        self.behaviour_stagnation.append(stagnant_count)
+        self.behaviour_stability.append(stable_count)
+        self.earnings_stagnation_events.append(earnings_stagnation_count)
         
         # Update previous state for next tick
         self._previous_behaviours = current_behaviours.copy()
+    
+    def _count_earnings_stagnation_events(self, simulation) -> int:
+        """Count drivers with earnings stagnation detected this tick.
+        
+        Returns drivers that have stagnation_exploration in mutation history at current time.
+        """
+        if not hasattr(simulation, 'mutation_rule') or simulation.mutation_rule is None:
+            return 0
+        
+        rule = simulation.mutation_rule
+        if not hasattr(rule, 'mutation_history'):
+            return 0
+        
+        # Count unique drivers that had stagnation_exploration mutations at current time
+        stagnation_drivers = set()
+        for entry in rule.mutation_history:
+            if entry['time'] == simulation.time and entry['reason'] == 'stagnation_exploration':
+                stagnation_drivers.add(entry['driver_id'])
+        
+        return len(stagnation_drivers)
+    
+    def _track_mutation_reasons(self, simulation) -> None:
+        """Update mutation reason breakdown from mutation rule history."""
+        if not hasattr(simulation, 'mutation_rule') or simulation.mutation_rule is None:
+            return
+        
+        rule = simulation.mutation_rule
+        if not hasattr(rule, 'mutation_history'):
+            return
+        
+        # Count reasons from entire history
+        reason_counts = {
+            'performance_low_earnings': 0,
+            'performance_high_earnings': 0,
+            'exit_greedy': 0,
+            'exit_earnings': 0,
+            'stagnation_exploration': 0
+        }
+        
+        for entry in rule.mutation_history:
+            reason = entry.get('reason')
+            if reason in reason_counts:
+                reason_counts[reason] += 1
+        
+        self._mutation_reason_counts = reason_counts
     
     def get_data(self):
         """Return all time-series data as dict."""
@@ -140,7 +200,8 @@ class SimulationTimeSeries:
             'utilization': self.utilization,
             'behaviour_distribution': self.behaviour_distribution,
             'behaviour_mutations': self.behaviour_mutations,
-            'behaviour_stagnation': self.behaviour_stagnation,
+            'behaviour_stability': self.behaviour_stability,
+            'earnings_stagnation_events': self.earnings_stagnation_events,
         }
     
     def get_final_summary(self):
@@ -150,7 +211,8 @@ class SimulationTimeSeries:
         
         total_requests = self.served[-1] + self.expired[-1]
         total_mutations = self.behaviour_mutations[-1] if self.behaviour_mutations else 0
-        avg_stagnation = sum(self.behaviour_stagnation) / len(self.behaviour_stagnation) if self.behaviour_stagnation else 0
+        avg_stability = sum(self.behaviour_stability) / len(self.behaviour_stability) if self.behaviour_stability else 0
+        avg_earnings_stagnation = sum(self.earnings_stagnation_events) / len(self.earnings_stagnation_events) if self.earnings_stagnation_events else 0
         
         return {
             'total_time': self.times[-1],
@@ -160,7 +222,9 @@ class SimulationTimeSeries:
             'total_requests': total_requests,
             'service_level': (self.served[-1] / total_requests * 100.0) if total_requests > 0 else 0.0,
             'total_behaviour_mutations': total_mutations,
-            'avg_stagnant_drivers': avg_stagnation,
+            'avg_stable_drivers': avg_stability,
+            'avg_earnings_stagnation_events': avg_earnings_stagnation,
+            'mutation_reason_breakdown': self._mutation_reason_counts.copy(),
             'final_behaviour_distribution': self.behaviour_distribution[-1] if self.behaviour_distribution else {},
         }
 
@@ -192,7 +256,8 @@ Average Wait Time:     {summary.get('final_avg_wait', 0):.2f} ticks
 
 Behaviour Analysis:
   • Total Mutations:    {summary.get('total_behaviour_mutations', 0)}
-  • Avg Stagnant:       {summary.get('avg_stagnant_drivers', 0):.1f}
+  • Avg Stable:         {summary.get('avg_stable_drivers', 0):.1f}
+  • Avg Earnings Stag:  {summary.get('avg_earnings_stagnation_events', 0):.1f}
 
 Total Drivers:         {len(simulation.drivers)}
 Total Requests:        {len(simulation.requests)}
@@ -213,12 +278,13 @@ def format_behaviour_statistics(simulation, time_series) -> str:
         percentage = (count / total_drivers * 100) if total_drivers > 0 else 0
         stats_text += f"  • {behaviour_type:25s}: {count:3d} drivers ({percentage:5.1f}%)\n"
     
-    # Add time-series mutation and stagnation stats if available
+    # Add time-series mutation and stability stats if available
     if time_series and time_series.get_final_summary():
         summary = time_series.get_final_summary()
         stats_text += f"\nBehaviour Evolution Metrics:\n"
         stats_text += f"  • Total Mutations:        {summary.get('total_behaviour_mutations', 0)}\n"
-        stats_text += f"  • Avg Stagnant Drivers:   {summary.get('avg_stagnant_drivers', 0):.1f}\n"
+        stats_text += f"  • Avg Stable Drivers:     {summary.get('avg_stable_drivers', 0):.1f}\n"
+        stats_text += f"  • Avg Earnings Stagnation: {summary.get('avg_earnings_stagnation_events', 0):.1f}\n"
     
     return stats_text
 
@@ -257,20 +323,25 @@ def format_mutation_rule_info(simulation) -> str:
     rule_text += f"Active Rule: {rule_type}\n\n"
     
     if rule_type == "HybridMutation":
-        if hasattr(rule, 'window'):
-            rule_text += f"Performance Window:  {rule.window} ticks\n"
         if hasattr(rule, 'low_threshold'):
-            rule_text += f"Low Earnings Threshold:  {rule.low_threshold:.2f}\n"
+            rule_text += f"Low Earnings Threshold:      {rule.low_threshold:.2f}\n"
         if hasattr(rule, 'high_threshold'):
-            rule_text += f"High Earnings Threshold:  {rule.high_threshold:.2f}\n"
+            rule_text += f"High Earnings Threshold:     {rule.high_threshold:.2f}\n"
         if hasattr(rule, 'cooldown_ticks'):
-            rule_text += f"Mutation Cooldown:  {rule.cooldown_ticks} ticks\n"
-        if hasattr(rule, 'stagnation_window'):
-            rule_text += f"Stagnation Window:  {rule.stagnation_window} ticks\n"
+            rule_text += f"Mutation Cooldown:           {rule.cooldown_ticks} ticks\n"
+        if hasattr(rule, 'exploration_prob'):
+            rule_text += f"Exploration Probability:     {rule.exploration_prob:.1%}\n"
+        if hasattr(rule, 'greedy_exit_threshold'):
+            rule_text += f"Greedy Exit Threshold:       {rule.greedy_exit_threshold:.2f}\n"
+        if hasattr(rule, 'earnings_max_exit_threshold'):
+            rule_text += f"EarningsMax Exit Threshold:  {rule.earnings_max_exit_threshold:.2f}\n"
+        
         rule_text += "\nTrigger Conditions:\n"
-        rule_text += "  Low earnings → Switch to Greedy\n"
-        rule_text += "  High earnings → Switch to EarningsMax\n"
-        rule_text += "  Stagnating → Explore random behaviour\n"
+        rule_text += "  • Performance (Low):  avg < 3.0  → Switch to Greedy\n"
+        rule_text += "  • Performance (High): avg > 10.0 → Switch to EarningsMax\n"
+        rule_text += "  • Stagnation:         70% within ±5% of avg → Explore\n"
+        rule_text += "    - Lazy driver:    100% explore\n"
+        rule_text += "    - Active driver:  30% explore\n"
         
         # Add mutation transitions data
         if hasattr(rule, 'mutation_transitions') and rule.mutation_transitions:
@@ -279,6 +350,35 @@ def format_mutation_rule_info(simulation) -> str:
             for (from_behaviour, to_behaviour), count in sorted(rule.mutation_transitions.items()):
                 pct = (count / total_mutations * 100) if total_mutations > 0 else 0
                 rule_text += f"  {from_behaviour} → {to_behaviour}: {count}\n"
+        
+        # Add mutation reason breakdown
+        if hasattr(rule, 'mutation_history') and rule.mutation_history:
+            rule_text += "\nMutation Reason Breakdown:\n"
+            reason_names = {
+                'performance_low_earnings': 'Low Earnings (< 3.0)',
+                'performance_high_earnings': 'High Earnings (> 10.0)',
+                'exit_greedy': 'Exit Greedy (>= 5.0)',
+                'exit_earnings': 'Exit EarningsMax (< 7.5)',
+                'stagnation_exploration': 'Stagnation Exploration'
+            }
+            
+            # Count mutations by reason
+            reason_counts = {
+                'performance_low_earnings': 0,
+                'performance_high_earnings': 0,
+                'exit_greedy': 0,
+                'exit_earnings': 0,
+                'stagnation_exploration': 0
+            }
+            for entry in rule.mutation_history:
+                reason = entry.get('reason')
+                if reason in reason_counts:
+                    reason_counts[reason] += 1
+            
+            total_mutations = sum(reason_counts.values())
+            for reason, count in sorted(reason_counts.items()):
+                pct = (count / total_mutations * 100) if total_mutations > 0 else 0
+                rule_text += f"  • {reason_names.get(reason, reason):30s}: {count:3d} ({pct:5.1f}%)\n"
         
         # Add detailed mutation history (last 10 mutations shown)
         if hasattr(rule, 'mutation_history') and rule.mutation_history:
