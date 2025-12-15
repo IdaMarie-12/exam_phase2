@@ -27,7 +27,7 @@ class TestHybridMutationInit(unittest.TestCase):
     def test_init_default_parameters(self):
         """HybridMutation initializes with default parameters."""
         mutation = HybridMutation()
-        self.assertEqual(mutation.window, 5)
+        self.assertEqual(mutation.window, 10)
         self.assertEqual(mutation.low_threshold, HYBRID_LOW_EARNINGS_THRESHOLD)
         self.assertEqual(mutation.high_threshold, HYBRID_HIGH_EARNINGS_THRESHOLD)
         self.assertEqual(mutation.cooldown_ticks, HYBRID_COOLDOWN_TICKS)

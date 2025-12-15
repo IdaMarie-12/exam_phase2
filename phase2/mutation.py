@@ -30,11 +30,20 @@ if TYPE_CHECKING:
 # ====================================================================
 # Used when creating new behaviour instances during mutations
 
-# HybridMutation: Thresholds for when to switch behaviours
-HYBRID_LOW_EARNINGS_THRESHOLD = 3.0      # Switch to greedy if earnings drop below this
-HYBRID_HIGH_EARNINGS_THRESHOLD = 10.0    # Switch to earnings-max if earnings exceed this
-HYBRID_COOLDOWN_TICKS = 10               # Minimum ticks between mutations (avoid churn)
-HYBRID_EXPLORATION_PROBABILITY = 0.3     # 30% chance to explore when stagnating
+# HybridMutation: Performance zones and mutation thresholds (spec: Appendix XX)
+# Zone definitions based on average earnings from last 10 trips:
+#   Struggling: < 3.0     → Switch to GreedyDistanceBehaviour
+#   Recovery:   3.0-5.0   → Exit zone (Greedy exit at ≥5.0)
+#   Normal:     5.0-7.5   → Evaluate stability, not primary action
+#   Good:       7.5-10.0  → Stable performance, approaching selectivity
+#   Thriving:   > 10.0    → Switch to EarningsMaxBehaviour
+HYBRID_LOW_EARNINGS_THRESHOLD = 3.0      # Zone: Struggling (switch to Greedy)
+HYBRID_HIGH_EARNINGS_THRESHOLD = 10.0    # Zone: Thriving (switch to EarningsMax)
+HYBRID_GREEDY_EXIT_THRESHOLD = 5.0       # Greedy driver exits at avg fare ≥ 5.0
+HYBRID_EARNINGS_EXIT_THRESHOLD = 6.0     # EarningsMax driver exits at avg fare < 6.0
+HYBRID_COOLDOWN_TICKS = 10               # Minimum ticks between mutations
+HYBRID_STAGNATION_WINDOW = 10            # Evaluate stagnation over last 10 trips
+HYBRID_EXPLORATION_PROBABILITY = 0.3     # 30% chance to explore when stagnating (Greedy/EarningsMax)
 
 # Greedy mutation: Accept nearby pickups
 GREEDY_MAX_DISTANCE = 10.0
@@ -81,48 +90,64 @@ class HybridMutation(MutationRule):
 
     def __init__(
         self,
+        window: int = 10,
         low_threshold: float = HYBRID_LOW_EARNINGS_THRESHOLD,
         high_threshold: float = HYBRID_HIGH_EARNINGS_THRESHOLD,
         cooldown_ticks: int = HYBRID_COOLDOWN_TICKS,
-        exploration_prob: float = HYBRID_EXPLORATION_PROBABILITY
+        stagnation_window: int = HYBRID_STAGNATION_WINDOW,
+        exploration_prob: float = HYBRID_EXPLORATION_PROBABILITY,
+        greedy_exit_threshold: float = HYBRID_GREEDY_EXIT_THRESHOLD,
+        earnings_exit_threshold: float = HYBRID_EARNINGS_EXIT_THRESHOLD
     ):
         """Initialize with earnings thresholds, cooldown, and exploration parameters.
         
-        Note: Evaluation window is fixed at 10 ticks (matches cooldown period).
+        Args:
+            window: Evaluation window for recent history (default 10 trips per spec)
+            low_threshold: Switch to greedy if avg earnings below this (Struggling zone)
+            high_threshold: Switch to earnings-max if avg earnings above this (Thriving zone)
+            cooldown_ticks: Minimum ticks between mutations (default 10)
+            stagnation_window: Evaluate stagnation over this many trips (default 10)
+            exploration_prob: Probability to explore when stagnating (default 30%)
+            greedy_exit_threshold: Greedy driver exits at avg fare ≥ this (Recovery/Normal boundary)
+            earnings_exit_threshold: EarningsMax driver exits at avg fare < this
         """
+        if window <= 0:
+            raise ValueError(f"window must be > 0, got {window}")
         if low_threshold < 0:
             raise ValueError(f"low_threshold must be >= 0, got {low_threshold}")
         if high_threshold < low_threshold:
             raise ValueError(f"high_threshold must be >= low_threshold")
         if cooldown_ticks < 0:
             raise ValueError(f"cooldown_ticks must be >= 0, got {cooldown_ticks}")
+        if stagnation_window <= 0:
+            raise ValueError(f"stagnation_window must be > 0, got {stagnation_window}")
         if not (0.0 <= exploration_prob <= 1.0):
             raise ValueError(f"exploration_prob must be in [0, 1], got {exploration_prob}")
         
+        self.window = window
         self.low_threshold = low_threshold
         self.high_threshold = high_threshold
         self.cooldown_ticks = cooldown_ticks
+        self.stagnation_window = stagnation_window
         self.exploration_prob = exploration_prob
+        self.greedy_exit_threshold = greedy_exit_threshold      # Exit Greedy at ≥ 5.0
+        self.earnings_max_exit_threshold = earnings_exit_threshold  # Exit EarningsMax at < 7.5
+        
         # Track mutations for reporting: {(from_behaviour, to_behaviour): count}
         self.mutation_transitions = {}
         
         # Detailed mutation history for debugging/analysis
         # List of {time, driver_id, from_behaviour, to_behaviour, reason}
         self.mutation_history = []
-        
-        # Exit thresholds for behaviour-specific conditions
-        # Balanced hysteresis: proportional gaps between entry and exit
-        self.greedy_exit_threshold = 5.0        # Exit greedy at 1.67x entry (moderate recovery allows time in behaviour)
-        self.earnings_max_exit_threshold = 7.5  # Exit earnings-max at 0.75x entry (drop from thriving triggers exit)
 
     def _average_fare(self, driver: Driver) -> Optional[float]:
-        """Return average fare from last 10 trips, or None if insufficient history."""
-        history = get_driver_history_window(driver.history)
+        """Return average fare from last window trips, or None if insufficient history."""
+        history = get_driver_history_window(driver.history, self.window)
         return calculate_average_fare(history)
 
     def _is_stagnating(self, driver: Driver) -> bool:
-        """Check if driver earnings are stagnating (low variance over last 10 trips)."""
-        history = get_driver_history_window(driver.history)
+        """Check if driver earnings are stagnating (low variance over last window trips)."""
+        history = get_driver_history_window(driver.history, self.window)
         if len(history) < 2:
             return False
         
@@ -140,28 +165,28 @@ class HybridMutation(MutationRule):
     def _should_exit_behaviour(self, driver: Driver, avg_fare: Optional[float]) -> bool:
         """Check if driver should exit their current behaviour based on earnings recovery/decline.
         
-        Exit conditions (behaviour-specific):
-        - GreedyDistanceBehaviour: Exit if earnings improve to >= 6.0 (recovered, no longer struggling)
-        - EarningsMaxBehaviour: Exit if earnings drop below 6.0 (unsustainable, too picky)
-        - LazyBehaviour: No exit (neutral fallback behaviour)
+        Exit conditions per spec:
+        - GreedyDistanceBehaviour: Exit if avg fare > 5.0 (above Recovery zone, into Normal/Good)
+        - EarningsMaxBehaviour: Exit if avg fare < 7.5 (below Good zone, into Normal/Recovery)
+        - LazyBehaviour: No exit (neutral fallback state)
         
         Args:
             driver: Driver to check
             avg_fare: Average fare from recent trips
             
         Returns:
-            bool: True if driver should exit current behaviour
+            bool: True if driver should exit current behaviour, False otherwise
         """
         if avg_fare is None:
             return False
         
         current_behaviour = get_behaviour_name(driver.behaviour)
         
-        # GreedyDistanceBehaviour exit: earnings recovered to healthy level
+        # GreedyDistanceBehaviour exit: earnings improved above Recovery zone (> 5.0)
         if current_behaviour == "GreedyDistanceBehaviour":
-            return avg_fare >= self.greedy_exit_threshold
+            return avg_fare > self.greedy_exit_threshold
         
-        # EarningsMaxBehaviour exit: earnings unsustainably low
+        # EarningsMaxBehaviour exit: earnings dropped below Good zone (< 7.5)
         if current_behaviour == "EarningsMaxBehaviour":
             return avg_fare < self.earnings_max_exit_threshold
         
@@ -205,10 +230,31 @@ class HybridMutation(MutationRule):
         self.mutation_transitions[key] = self.mutation_transitions.get(key, 0) + 1
 
     def maybe_mutate(self, driver: Driver, time: int) -> None:
-        """Adapt behaviour based on performance: low→greedy, high→earnings-max, stagnating→explore.
+        """Execute 5-step HybridMutation process per spec (Appendix XX):
         
-        Applies exit conditions first: if driver should leave current behaviour, reset to LazyBehaviour.
-        Then applies performance-based mutations if conditions warrant change.
+        Step 1: Assess driver cooldown period - can only mutate once per 10 ticks
+        Step 2: Calculate average fare from last 10 trips
+        Step 3: Check exit conditions - exit current behaviour if thresholds met
+        Step 4a: Primary mutation - performance-based (Struggling → Greedy, Thriving → EarningsMax)
+        Step 4b: Secondary mutation - stagnation-based exploration (30% for active behaviours)
+        
+        Zone mapping (avg earnings):
+          Struggling (< 3.0)     → Switch to GreedyDistanceBehaviour
+          Recovery (3.0-5.0)     → Exit zone (Greedy exits at ≥5.0)
+          Normal (5.0-7.5)       → Evaluate stability, check stagnation
+          Good (7.5-10.0)        → Stable, approaching selectivity
+          Thriving (> 10.0)      → Switch to EarningsMaxBehaviour
+        
+        Exit conditions:
+          - Greedy: avg ≥ 5.0 → reset to Lazy
+          - EarningsMax: avg < 7.5 → reset to Lazy
+          - Lazy: no exit (neutral state)
+        
+        Stagnation (70% variance within ±5% of avg):
+          - Lazy: always explore → random Greedy or EarningsMax
+          - Greedy/EarningsMax: 30% chance explore → random other active behaviour
+        
+        New behaviour takes effect next tick (after offers evaluated this tick).
         """
         # Check cooldown: driver can only mutate once per N ticks
         if not self._can_mutate(driver, time):
@@ -247,20 +293,19 @@ class HybridMutation(MutationRule):
             self._record_mutation(driver, time)
         elif self._is_stagnating(driver):
             # SECONDARY: Stagnating performance → explore to break pattern
-            # For Lazy: Always explore (must try something active)
-            # For Greedy/EarningsMax: 30% chance to explore
+            # Exploration probability determines if we mutate when stagnating
             
-            # Extract behaviour shorthand: "GreedyDistanceBehaviour" → "greedy", etc.
-            if "Greedy" in old_behaviour_name:
-                current_behaviour_short = "greedy"
-            elif "Earnings" in old_behaviour_name:
-                current_behaviour_short = "earnings"
-            else:
-                current_behaviour_short = "lazy"
-            
-            should_explore = (current_behaviour_short == "lazy") or (random.random() < self.exploration_prob)
+            should_explore = random.random() < self.exploration_prob
             
             if should_explore:
+                # Extract behaviour shorthand: "GreedyDistanceBehaviour" → "greedy", etc.
+                if "Greedy" in old_behaviour_name:
+                    current_behaviour_short = "greedy"
+                elif "Earnings" in old_behaviour_name:
+                    current_behaviour_short = "earnings"
+                else:
+                    current_behaviour_short = "lazy"
+                
                 # Pick from behaviours different from current
                 available_choices = [b for b in ["greedy", "earnings", "lazy"] if b != current_behaviour_short]
                 choice = random.choice(available_choices)
