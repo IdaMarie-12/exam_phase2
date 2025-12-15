@@ -1,8 +1,3 @@
-"""
-Core helper utilities for Phase 2 simulation.
-Only includes functions directly used by Phase 2 classes.
-"""
-
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
