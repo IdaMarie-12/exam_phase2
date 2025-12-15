@@ -19,15 +19,11 @@ except ImportError:
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from collections import Counter
 
 
 def generate_report(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Generate 4 matplotlib windows: system efficiency, behaviour dynamics, mutation analysis, and policy effectiveness.
-    
-    Args:
-        simulation: Completed DeliverySimulation instance
-        time_series: Optional SimulationTimeSeries with recorded metrics
-    """
+    """Generate 4 report windows with 15 plots."""
     
     _show_metrics_window(simulation, time_series)           # Window 1: System Efficiency
     _show_behaviour_window(simulation, time_series)         # Window 2: Behaviour Dynamics
@@ -65,7 +61,7 @@ def _plot_time_series(ax, times, data, label, color, title, ylabel, fill=False):
 # ====================================================================
 
 def _show_metrics_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Display window 1: System efficiency metrics and trends."""
+    """Display Window 1: System efficiency metrics."""
     fig1 = plt.figure(num=1, figsize=(16, 15))
     fig1.suptitle('System Efficiency Overview', fontsize=16, fontweight='bold')
     
@@ -89,7 +85,7 @@ def _show_metrics_window(simulation, time_series: Optional[SimulationTimeSeries]
     
     # Plot 5: Request Age Pressure
     ax5 = fig1.add_subplot(gs[2, 1])
-    _plot_request_age_evolution(ax5, time_series)
+    _plot_request_age_evolution(ax5, simulation, time_series)
     
     # Plot 6: Summary Statistics
     ax6 = fig1.add_subplot(gs[3, :])
@@ -97,7 +93,7 @@ def _show_metrics_window(simulation, time_series: Optional[SimulationTimeSeries]
 
 
 def _plot_requests_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot cumulative served and expired requests over time."""
+    """Plot cumulative served and expired requests."""
     if time_series is None or not time_series.times:
         ax.text(0.5, 0.5, 'No time-series data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=12, color='gray')
@@ -115,7 +111,7 @@ def _plot_requests_evolution(ax, time_series: Optional[SimulationTimeSeries]) ->
 
 
 def _plot_service_level_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot service level (% served) trend over simulation."""
+    """Plot service level (% served) trend."""
     if time_series is None or not time_series.times:
         ax.text(0.5, 0.5, 'No time-series data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
@@ -125,18 +121,6 @@ def _plot_service_level_evolution(ax, time_series: Optional[SimulationTimeSeries
     _plot_time_series(ax, time_series.times, time_series.service_level, 'Service Level', 'darkgreen',
                      'Service Level Evolution (% Served)', 'Service Level (%)', fill=True)
     ax.set_ylim([0, 105])
-
-
-def _plot_wait_time_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot average wait time trend over simulation."""
-    if time_series is None or not time_series.times:
-        ax.text(0.5, 0.5, 'No time-series data', ha='center', va='center',
-                transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Average Request Wait Time')
-        return
-    
-    _plot_time_series(ax, time_series.times, time_series.avg_wait, 'Wait Time', 'steelblue',
-                     'Average Request Wait Time (from creation to pickup)', 'Average Wait (ticks)', fill=True)
 
 
 def _plot_utilization_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
@@ -155,7 +139,7 @@ def _plot_utilization_evolution(ax, time_series: Optional[SimulationTimeSeries])
 
 
 def _plot_pending_requests(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot number of pending (waiting) requests over time."""
+    """Plot pending requests queue depth."""
     if time_series is None or not time_series.pending_requests:
         ax.text(0.5, 0.5, 'No pending request data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
@@ -166,8 +150,8 @@ def _plot_pending_requests(ax, time_series: Optional[SimulationTimeSeries]) -> N
                      'Pending Requests Over Time', 'Queue Depth', fill=True)
 
 
-def _plot_request_age_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot max and avg request age to show queue pressure."""
+def _plot_request_age_evolution(ax, simulation, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot max and average request age vs timeout threshold."""
     if time_series is None or not time_series.max_request_age:
         ax.text(0.5, 0.5, 'No request age data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
@@ -175,15 +159,20 @@ def _plot_request_age_evolution(ax, time_series: Optional[SimulationTimeSeries])
         return
     
     ax.plot(time_series.times, time_series.max_request_age, linewidth=2, color='red', 
-            marker='.', label='Max Age', alpha=0.7)
+            marker='.', label='Max Age (oldest request)', alpha=0.7)
     ax.plot(time_series.times, time_series.avg_request_age, linewidth=2, color='orange', 
             marker='s', markersize=2, label='Avg Age', alpha=0.7)
+    
+    # Add timeout threshold line
+    timeout = simulation.timeout
+    ax.axhline(y=timeout, color='darkred', linestyle='--', linewidth=2.5, 
+               label=f'Timeout Threshold ({timeout} ticks)', alpha=0.8)
     
     ax.fill_between(time_series.times, time_series.max_request_age, alpha=0.15, color='red')
     ax.set_xlabel('Simulation Time (ticks)')
     ax.set_ylabel('Request Age (ticks)')
-    ax.set_title('Request Age Pressure (Queue Latency)')
-    ax.legend(loc='upper left')
+    ax.set_title('Request Age Pressure (Queue Latency vs Timeout)')
+    ax.legend(loc='upper left', fontsize=9)
     ax.grid(True, alpha=0.3)
 
 
@@ -201,7 +190,7 @@ def _plot_summary_statistics(ax, simulation, time_series: Optional[SimulationTim
 # ====================================================================
 
 def _show_behaviour_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Display window 2: Behaviour distribution, evolution, transitions, and stability."""
+    """Display Window 2: Behaviour dynamics and stability."""
     
     # Create figure with 3 rows if we have time-series data, 2 rows otherwise
     num_rows = 3 if (time_series and time_series.behaviour_distribution) else 2
@@ -267,7 +256,7 @@ def _show_behaviour_window(simulation, time_series: Optional[SimulationTimeSerie
 
 
 def _plot_behaviour_distribution_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot behaviour distribution evolution as stacked area chart."""
+    """Plot behaviour distribution evolution as stacked area."""
     if time_series is None or not time_series.behaviour_distribution:
         ax.text(0.5, 0.5, 'No behaviour data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
@@ -312,44 +301,67 @@ def _plot_behaviour_distribution_evolution(ax, time_series: Optional[SimulationT
 # ====================================================================
 
 def _show_mutation_root_cause_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Display window 3: Mutation reasons breakdown and driver mutation frequency."""
+    """Display Window 3: Mutation analysis and root causes."""
     
-    fig3 = plt.figure(num=3, figsize=(16, 11))
+    fig3 = plt.figure(num=3, figsize=(16, 12))
     fig3.suptitle('Mutation Root Cause Analysis', fontsize=14, fontweight='bold')
     
-    gs = gridspec.GridSpec(2, 2, figure=fig3, hspace=0.50, wspace=0.40, top=0.96, bottom=0.06, left=0.08, right=0.96)
+    gs = gridspec.GridSpec(3, 1, figure=fig3, hspace=0.50, wspace=0.40, top=0.96, bottom=0.06, left=0.08, right=0.96)
     
-    # Plot 1: Mutation reasons pie chart
+    # Plot 1: Cumulative mutation count over time
     ax1 = fig3.add_subplot(gs[0, 0])
-    _plot_mutation_reasons_pie(ax1, time_series)
+    _plot_cumulative_mutations(ax1, time_series)
     
-    # Plot 2: Mutation rate over time
-    ax2 = fig3.add_subplot(gs[0, 1])
-    _plot_mutation_rate_evolution(ax2, time_series)
+    # Plot 2: Mutation reasons evolution (stacked area)
+    ax2 = fig3.add_subplot(gs[1, 0])
+    _plot_mutation_reasons_evolution(ax2, time_series)
     
     # Plot 3: Driver mutation frequency distribution
-    ax3 = fig3.add_subplot(gs[1, :])
+    ax3 = fig3.add_subplot(gs[2, 0])
     _plot_driver_mutation_frequency(ax3, time_series)
 
 
-def _plot_mutation_reasons_pie(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot pie chart of mutation reasons breakdown."""
-    if time_series is None or not time_series.mutation_reasons:
+def _plot_cumulative_mutations(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot cumulative mutation count over time."""
+    if time_series is None or not time_series.times or not time_series.mutations_per_tick:
         ax.text(0.5, 0.5, 'No mutation data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Mutation Reasons')
+        ax.set_title('Cumulative Mutations Over Time')
         return
     
-    # Get final reason counts
-    final_reasons = time_series.mutation_reasons[-1] if time_series.mutation_reasons else {}
+    # Calculate cumulative mutations
+    cumulative = []
+    total = 0
+    for mutations in time_series.mutations_per_tick:
+        total += mutations
+        cumulative.append(total)
     
-    # Filter out zero-count reasons
-    filtered_reasons = {k: v for k, v in final_reasons.items() if v > 0}
+    ax.plot(time_series.times, cumulative, linewidth=2.5, color='darkred', marker='o', markersize=3)
+    ax.fill_between(time_series.times, cumulative, alpha=0.2, color='red')
     
-    if not filtered_reasons:
-        ax.text(0.5, 0.5, 'No mutations recorded', ha='center', va='center',
+    ax.set_xlabel('Simulation Time (ticks)')
+    ax.set_ylabel('Total Mutations')
+    ax.set_title('Cumulative Mutation Count')
+    ax.grid(True, alpha=0.3)
+
+
+def _plot_mutation_reasons_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot stacked area of mutation reasons over time."""
+    if time_series is None or not time_series.mutation_reasons or not time_series.times:
+        ax.text(0.5, 0.5, 'No mutation reason data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Mutation Reasons')
+        ax.set_title('Mutation Reasons Over Time')
+        return
+    
+    # Collect all possible reasons
+    all_reasons = set()
+    for reason_dict in time_series.mutation_reasons:
+        all_reasons.update(reason_dict.keys())
+    
+    if not all_reasons:
+        ax.text(0.5, 0.5, 'No mutation reasons recorded', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Mutation Reasons Over Time')
         return
     
     # Format reason names for display
@@ -362,44 +374,34 @@ def _plot_mutation_reasons_pie(ax, time_series: Optional[SimulationTimeSeries]) 
         'stagnation_exploration': 'Stagnation Exploration'
     }
     
-    labels = [reason_labels.get(k, k) for k in filtered_reasons.keys()]
-    sizes = list(filtered_reasons.values())
-    colors = PLOT_COLOURS if len(filtered_reasons) <= len(PLOT_COLOURS) else PLOT_COLOURS * (len(filtered_reasons) // len(PLOT_COLOURS) + 1)
+    all_reasons = sorted(list(all_reasons))
     
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%', colors=colors[:len(filtered_reasons)], startangle=90)
-    ax.set_title('Mutation Reason Distribution')
-
-
-def _plot_mutation_rate_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot actual mutations per tick vs smoothed mutation rate trend."""
-    if time_series is None or not time_series.times or not time_series.mutation_rate:
-        ax.text(0.5, 0.5, 'No mutation rate data', ha='center', va='center',
-                transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Mutation Activity')
-        return
+    # Build data for each reason over time (already cumulative in source)
+    reason_series = {reason: [] for reason in all_reasons}
     
-    # Plot actual mutations per tick as bars (shows spikes and cooldown pattern)
-    ax.bar(time_series.times, time_series.mutations_per_tick, width=0.8, alpha=0.4, 
-           color='red', label='Actual Mutations/Tick')
+    for reason_dict in time_series.mutation_reasons:
+        for reason in all_reasons:
+            # reason_dict already contains cumulative count from start
+            count = reason_dict.get(reason, 0)
+            reason_series[reason].append(count)
     
-    # Overlay smoothed mutation rate as line (trend over 10-tick window)
-    ax.plot(time_series.times, time_series.mutation_rate, linewidth=2.5, color='darkred', 
-            marker='o', markersize=4, label='10-Tick Avg Rate', linestyle='-')
+    # Plot stacked area
+    labels = [reason_labels.get(r, r) for r in all_reasons]
+    ax.stackplot(time_series.times,
+                 *[reason_series[r] for r in all_reasons],
+                 labels=labels,
+                 colors=PLOT_COLOURS[:len(all_reasons)],
+                 alpha=0.75)
     
     ax.set_xlabel('Simulation Time (ticks)')
-    ax.set_ylabel('Mutations')
-    ax.set_title('Mutation Activity (Actual vs Smoothed Rate)')
-    ax.legend(loc='upper right', fontsize=9)
+    ax.set_ylabel('Cumulative Mutations')
+    ax.set_title('Mutation Reasons Over Time (Cumulative Breakdown)')
+    ax.legend(loc='upper left', fontsize=8, ncol=2)
     ax.grid(True, alpha=0.3)
-    
-    # Add note about cooldown
-    ax.text(0.02, 0.98, 'Note: Cooldown period limits mutations per driver to ~1 per 10 ticks',
-            transform=ax.transAxes, fontsize=8, verticalalignment='top',
-            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
 
 
 def _plot_driver_mutation_frequency(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot distribution of how many times each driver mutated."""
+    """Plot distribution of mutations per driver."""
     if time_series is None or not time_series.driver_mutation_freq:
         ax.text(0.5, 0.5, 'No driver mutation data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
@@ -408,7 +410,6 @@ def _plot_driver_mutation_frequency(ax, time_series: Optional[SimulationTimeSeri
     
     from collections import Counter
     mutation_freq_dist = Counter(time_series.driver_mutation_freq.values())
-    
     frequencies = sorted(mutation_freq_dist.keys())
     counts = [mutation_freq_dist[f] for f in frequencies]
     
@@ -484,20 +485,6 @@ def _plot_offers_generated(ax, time_series: Optional[SimulationTimeSeries]) -> N
                      'Number of Offers', fill=True)
 
 
-def _plot_offer_acceptance_rate(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot offer acceptance rate over time."""
-    if time_series is None or not time_series.offer_acceptance_rate:
-        ax.text(0.5, 0.5, 'No acceptance data', ha='center', va='center',
-                transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Offer Acceptance Rate')
-        return
-    
-    _plot_time_series(ax, time_series.times, time_series.offer_acceptance_rate,
-                     'Acceptance Rate', 'darkgreen', 'Offer Acceptance Rate Over Time',
-                     'Acceptance Rate (%)', fill=True)
-    ax.set_ylim([0, 105])
-
-
 def _plot_offer_quality(ax, time_series: Optional[SimulationTimeSeries]) -> None:
     """Plot average offer quality (reward/time ratio) over time."""
     if time_series is None or not time_series.avg_offer_quality:
@@ -540,33 +527,37 @@ def _plot_rejection_rate(ax, time_series: Optional[SimulationTimeSeries]) -> Non
 
 
 def _plot_policy_distribution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot policy distribution (drivers per policy) as stacked area."""
-    if time_series is None or not time_series.policy_distribution:
+    """Plot actual policy usage over time (NN vs GG for AdaptiveHybrid, or single policy)."""
+    if time_series is None or not time_series.actual_policy_used:
         ax.text(0.5, 0.5, 'No policy data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Policy Distribution')
+        ax.set_title('Policy Adoption Over Time')
         return
     
-    # Collect all policies
-    all_policies = set()
-    for policy_dict in time_series.policy_distribution:
-        all_policies.update(policy_dict.keys())
+    # Count policy usage per tick to create time series
+    from collections import defaultdict
+    policy_counts = defaultdict(lambda: defaultdict(int))
+    
+    # Group actual policies by tick (if available as time-series)
+    # For now, just show the distribution of which policies were used
+    all_policies = sorted(set(time_series.actual_policy_used))
     
     if not all_policies:
-        ax.text(0.5, 0.5, 'No policy distribution data', ha='center', va='center',
+        ax.text(0.5, 0.5, 'No policy data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Policy Distribution')
+        ax.set_title('Policy Adoption Over Time')
         return
     
-    all_policies = sorted(list(all_policies))
-    
-    # Build data for each policy over time
+    # Create running count of policy usage
     policy_series = {policy: [] for policy in all_policies}
-    for policy_dict in time_series.policy_distribution:
-        for policy in all_policies:
-            policy_series[policy].append(policy_dict.get(policy, 0))
+    policy_counts_running = {policy: 0 for policy in all_policies}
     
-    # Plot stacked area
+    for actual_policy in time_series.actual_policy_used:
+        policy_counts_running[actual_policy] += 1
+        for policy in all_policies:
+            policy_series[policy].append(policy_counts_running[policy])
+    
+    # Plot stacked area showing cumulative usage
     ax.stackplot(time_series.times,
                  *[policy_series[p] for p in all_policies],
                  labels=all_policies,
@@ -574,8 +565,8 @@ def _plot_policy_distribution(ax, time_series: Optional[SimulationTimeSeries]) -
                  alpha=0.7)
     
     ax.set_xlabel('Simulation Time (ticks)')
-    ax.set_ylabel('Number of Drivers')
-    ax.set_title('Policy Adoption Over Time')
+    ax.set_ylabel('Cumulative Policy Usage Count')
+    ax.set_title('Policy Adoption Over Time (Actual Sub-Policies)')
     ax.legend(loc='upper left', fontsize=9)
     ax.grid(True, alpha=0.3)
 
@@ -592,8 +583,8 @@ def _plot_policy_offer_summary(ax, simulation, time_series: Optional[SimulationT
         # Build policy information
         policies_used = ', '.join(sorted(time_series.policy_names)) if time_series.policy_names else 'None'
         
-        # If AdaptiveHybridPolicy, show which sub-policy was used more often
-        adaptive_note = ""
+        # If AdaptiveHybridPolicy, show which sub-policy was actually used
+        actual_policy_display = ""
         if 'AdaptiveHybridPolicy' in time_series.policy_names and summary.get('actual_policy_usage'):
             actual_usage = summary.get('actual_policy_usage', {})
             nn_count = actual_usage.get('NearestNeighborPolicy', 0)
@@ -603,8 +594,8 @@ def _plot_policy_offer_summary(ax, simulation, time_series: Optional[SimulationT
             if total_uses > 0:
                 nn_pct = (nn_count / total_uses * 100)
                 gg_pct = (gg_count / total_uses * 100)
-                adaptive_note = f"""
-Actual Policy Used (Adaptive Breakdown):
+                actual_policy_display = f"""
+Actual Sub-Policies Used:
   • NearestNeighbor:       {nn_count} ticks ({nn_pct:.1f}%)
   • GlobalGreedy:          {gg_count} ticks ({gg_pct:.1f}%)
 """
@@ -616,9 +607,7 @@ POLICY & OFFER SUMMARY
 Total Offers Generated:    {summary.get('total_offers_generated', 0)}
 Average Acceptance Rate:   {summary.get('avg_acceptance_rate', 0):.1f}%
 Average Offer Quality:     {summary.get('avg_offer_quality', 0):.4f} (Reward/Time)
-Matching Efficiency:       {summary.get('avg_matching_efficiency', 0):.1f}%
-
-Policy Configuration:      {policies_used}{adaptive_note}
+Matching Efficiency:       {summary.get('avg_matching_efficiency', 0):.1f}%{actual_policy_display}
 """
     
     ax.text(0.05, 0.95, summary_text, transform=ax.transAxes,

@@ -28,7 +28,7 @@ def get_simulation_summary(simulation) -> dict:
 
 
 class SimulationTimeSeries:
-    """Records simulation metrics at each timestep. Call record_tick after each tick."""
+    """Records simulation metrics at each timestep."""
     
     def __init__(self):
         self.times = []
@@ -85,7 +85,6 @@ class SimulationTimeSeries:
         self.served_to_expired_ratio = []  # KPI: served / (served + expired) per tick
         
         # Internal state tracking
-        self._previous_behaviours = {}     # Map of driver_id -> behaviour_type
         self._total_mutations = 0          # Cumulative mutation counter
         self._mutation_reason_counts = {
             'performance_low_earnings': 0,
@@ -98,11 +97,11 @@ class SimulationTimeSeries:
         self._mutations_last_10_ticks = 0  # Track mutations in last 10 ticks for rate
         self._recent_driver_mutations = {}  # Track which drivers mutated recently (last 5 ticks)
         self._previous_requests_count = 0  # Track request generation per tick
+        self._previous_behaviour_snapshots = {}  # Map of driver_id -> (last_tick, behaviour_type) for single-pass tracking
         self._previous_expired_count = 0   # Track expiration per tick
     
     def record_tick(self, simulation):
-        """Capture current simulation state including behaviour changes."""
-        # Validate simulation has all required attributes
+        """Record all metrics for current tick."""
         required_attrs = ['time', 'served_count', 'expired_count', 'avg_wait', 'requests', 'drivers']
         for attr in required_attrs:
             if not hasattr(simulation, attr):
@@ -142,7 +141,7 @@ class SimulationTimeSeries:
         self._track_system_load_indicators(simulation)
     
     def _track_behaviour_changes(self, simulation):
-        """Track driver behaviour mutations, transitions, and stability."""
+        """Track behaviour mutations, distribution, and stability."""
         # Get current behaviour snapshot
         try:
             current_behaviours = {
@@ -155,28 +154,42 @@ class SimulationTimeSeries:
                 f"Ensure all drivers have 'id' and 'behaviour' attributes."
             )
         
-        # Count mutations and build transition map
+        # Count mutations using mutation_history as single source of truth
         mutations_this_tick = 0
-        stable_count = 0
         transitions = defaultdict(int)  # from_behaviour -> to_behaviour counts
         
-        for driver_id, current_behaviour in current_behaviours.items():
-            if driver_id in self._previous_behaviours:
-                previous_behaviour = self._previous_behaviours[driver_id]
-                if current_behaviour != previous_behaviour:
-                    mutations_this_tick += 1
-                    self._total_mutations += 1
-                    transitions[f"{previous_behaviour}→{current_behaviour}"] += 1
-                    
-                    # Track driver mutation frequency
+        # Get mutations that occurred this tick from mutation_history
+        # Note: mutations are recorded during phase 8 with current time, then time is incremented in phase 9
+        # So when record_tick is called (after tick), simulation.time has already been incremented
+        # We need to check for mutations at (time - 1) to match mutations from the tick that just completed
+        if hasattr(simulation, 'mutation_rule') and hasattr(simulation.mutation_rule, 'mutation_history'):
+            mutations_this_tick = self._count_mutations_this_tick(
+                simulation.mutation_rule.mutation_history,
+                simulation.time - 1  # Check for mutations from the previous tick (which just completed)
+            )
+            
+            # Update recent mutations tracking
+            # Get mutations from the tick that just completed (time - 1)
+            current_tick_mutations = [
+                entry for entry in simulation.mutation_rule.mutation_history
+                if entry.get('time') == simulation.time - 1
+            ]
+            
+            for entry in current_tick_mutations:
+                driver_id = entry.get('driver_id')
+                if driver_id:
                     if driver_id not in self.driver_mutation_freq:
                         self.driver_mutation_freq[driver_id] = 0
                     self.driver_mutation_freq[driver_id] += 1
-                    
-                    # Mark driver as recently mutated
                     self._recent_driver_mutations[driver_id] = simulation.time
-                else:
-                    stable_count += 1
+                    
+                    # Build transitions for diagnostics
+                    old_behaviour = entry.get('from_behaviour', 'Unknown')
+                    new_behaviour = entry.get('to_behaviour', 'Unknown')
+                    transitions[f"{old_behaviour}→{new_behaviour}"] += 1
+        
+        # Update total mutations counter
+        self._total_mutations += mutations_this_tick
         
         # Clean old recent mutations (older than 5 ticks)
         cutoff_time = simulation.time - 5
@@ -219,8 +232,16 @@ class SimulationTimeSeries:
         self.stable_ratio.append(stable_ratio)
         self.mutation_reasons.append(self._mutation_reason_counts.copy())
         
-        # Update previous state for next tick
-        self._previous_behaviours = current_behaviours.copy()
+        # Update snapshot for next tick's change detection
+        self._previous_behaviour_snapshots = current_behaviours.copy()
+    
+    def _count_mutations_this_tick(self, mutation_history, current_tick):
+        """Count mutations recorded at given tick."""
+        if not mutation_history:
+            return 0
+        
+        # Count entries with 'time' == current_tick (mutation_history uses 'time' field)
+        return sum(1 for entry in mutation_history if entry.get('time') == current_tick)
     
     def _track_mutation_reasons(self, simulation) -> None:
         """Update mutation reason breakdown from mutation rule history."""
@@ -242,14 +263,30 @@ class SimulationTimeSeries:
         }
         
         for entry in rule.mutation_history:
-            reason = entry.get('reason')
-            if reason in reason_counts:
-                reason_counts[reason] += 1
+            reason = entry.get('reason', '')
+            
+            # Normalize reason strings to standard keys
+            # Handle both short and long format reason names
+            if 'performance_low_earnings' in reason:
+                reason_counts['performance_low_earnings'] += 1
+            elif 'performance_high_earnings' in reason:
+                reason_counts['performance_high_earnings'] += 1
+            elif 'stagnation_exploration' in reason:
+                reason_counts['stagnation_exploration'] += 1
+            elif 'exit_greedy' in reason or 'exit_greedydistancebehaviour' in reason:
+                reason_counts['exit_greedy'] += 1
+            elif 'exit_earnings' in reason or 'exit_earningsmaxbehaviour' in reason:
+                reason_counts['exit_earnings'] += 1
+            elif 'exit_lazy' in reason or 'exit_lazybehaviour' in reason:
+                reason_counts['exit_lazy'] += 1
         
         self._mutation_reason_counts = reason_counts
     
     def _track_offers_and_policies(self, simulation) -> None:
-        """Track offer generation, acceptance, and policy distribution."""
+        """
+        Track offer generation, acceptance, quality, and policy distribution.
+        Handles offers at (time-1) matching phase timing.
+        """
         # Check if simulation has offer history attribute
         if not hasattr(simulation, 'offer_history'):
             # Initialize default tracking if not present
@@ -343,7 +380,7 @@ class SimulationTimeSeries:
             self.acceptance_rate_by_behaviour[behaviour_name].append(acceptance_rate_beh)
     
     def _track_request_queue_dynamics(self, simulation) -> None:
-        """Track pending requests, rejection rates, and request ages."""
+        """Track pending requests, age pressure, and queue metrics."""
         # Count pending (WAITING) requests
         pending_count = len([r for r in simulation.requests if getattr(r, 'status', None) == 'WAITING'])
         self.pending_requests.append(pending_count)
@@ -359,7 +396,7 @@ class SimulationTimeSeries:
             self.avg_request_age.append(0)
     
     def _track_driver_state_distribution(self, simulation) -> None:
-        """Track driver status distribution (IDLE, TO_PICKUP, TO_DROPOFF, etc.)."""
+        """Track driver status distribution and earnings by behaviour."""
         status_counts = defaultdict(int)
         for driver in simulation.drivers:
             status = getattr(driver, 'status', 'UNKNOWN')
@@ -374,7 +411,7 @@ class SimulationTimeSeries:
                 self.earnings_by_behaviour[behaviour_type].append(avg_earnings)
     
     def _track_system_load_indicators(self, simulation) -> None:
-        """Track request generation rate, expiration rate, and served/expired ratio."""
+        """Track request generation, expiration, and efficiency ratios."""
         # Calculate request generation rate
         current_total_requests = len(simulation.requests)
         generated_this_tick = max(0, current_total_requests - self._previous_requests_count)
@@ -394,7 +431,10 @@ class SimulationTimeSeries:
         self.served_to_expired_ratio.append(ratio)
     
     def _detect_actual_policy(self, simulation, offers) -> str:
-        """Detect which actual policy was used (detects if Adaptive used NN or GG)."""
+        """Detect policy used (distinguishes Adaptive sub-policy).
+        For AdaptiveHybridPolicy, returns whether it used NearestNeighbor
+        or GlobalGreedy based on request/driver ratio.
+        """
         if not hasattr(simulation, 'dispatch_policy'):
             return 'Unknown'
         
@@ -416,8 +456,8 @@ class SimulationTimeSeries:
         else:
             return 'NearestNeighborPolicy'
     
-    def get_data(self):
-        """Return all time-series data as dict."""
+    def get_data(self) -> dict:
+        """Get all time-series metric data."""
         return {
             'times': self.times,
             'served': self.served,
@@ -448,8 +488,8 @@ class SimulationTimeSeries:
             'served_to_expired_ratio': self.served_to_expired_ratio,
         }
     
-    def get_final_summary(self):
-        """Return final summary statistics."""
+    def get_final_summary(self) -> dict:
+        """Get aggregated final simulation summary."""
         if not self.times:
             return {}
         
@@ -480,6 +520,11 @@ class SimulationTimeSeries:
         # Calculate actual policy usage (for Adaptive breakdown)
         policy_usage = Counter(self.actual_policy_used)
         
+        # Calculate utilization variance (measures system load consistency)
+        import statistics
+        utilization_variance = statistics.variance(self.utilization) if len(self.utilization) > 1 else 0.0
+        avg_utilization = sum(self.utilization) / len(self.utilization) if self.utilization else 0.0
+        
         return {
             'total_time': self.times[-1],
             'final_served': self.served[-1],
@@ -506,6 +551,8 @@ class SimulationTimeSeries:
             'total_requests_generated': total_generated,
             'avg_expiration_rate': avg_expiration_rate,
             'final_served_to_expired_ratio': self.served_to_expired_ratio[-1] if self.served_to_expired_ratio else 0.0,
+            'avg_utilization': avg_utilization,
+            'utilization_variance': utilization_variance,
         }
 
 
@@ -514,12 +561,25 @@ class SimulationTimeSeries:
 # ====================================================================
 
 def format_summary_statistics(simulation, time_series) -> str:
-    """Format final simulation summary statistics as text block."""
+    """Format final simulation summary as text.
+    
+    Args:
+        simulation: DeliverySimulation instance.
+        time_series: SimulationTimeSeries with metrics.
+        
+    Returns:
+        Formatted text block.
+    """
     # Get final summary
     if time_series:
         summary = time_series.get_final_summary()
     else:
         summary = get_simulation_summary(simulation)
+    
+    # Calculate utilization display
+    avg_util = summary.get('avg_utilization', 0)
+    util_var = summary.get('utilization_variance', 0)
+    util_display = f"{avg_util:.1%} (var: {util_var:.2f})" if util_var is not None else f"{avg_util:.1%}"
     
     # Format text for Window 1
     stats_text = f"""
@@ -533,7 +593,7 @@ Total Requests:        {summary.get('total_requests', 0)}
 
 Service Level:         {summary.get('final_service_level', 0):.1f}%
 Average Wait Time:     {summary.get('final_avg_wait', 0):.2f} ticks
-System Stability:      Utilization variance tracking
+System Stability:      Utilization {util_display}
 
 Drivers Deployed:      {len(simulation.drivers)}
 """
@@ -541,7 +601,7 @@ Drivers Deployed:      {len(simulation.drivers)}
 
 
 def format_behaviour_statistics(simulation, time_series) -> str:
-    """Format behaviour distribution statistics as text block."""
+    """Format behaviour distribution statistics as text."""
     behaviour_counts = get_behaviour_distribution(simulation)
     total_drivers = len(simulation.drivers)
     
@@ -564,7 +624,7 @@ def format_behaviour_statistics(simulation, time_series) -> str:
 
 
 def format_impact_metrics(simulation) -> str:
-    """Format performance impact metrics as text block."""
+    """Format performance impact metrics as text."""
     total_requests = simulation.served_count + simulation.expired_count
     service_level = (simulation.served_count / total_requests * 100) if total_requests > 0 else 0
     
@@ -581,7 +641,7 @@ def format_impact_metrics(simulation) -> str:
 
 
 def format_mutation_rule_info(simulation) -> str:
-    """Format mutation rule configuration as text block."""
+    """Format mutation rule configuration as text."""
     if not hasattr(simulation, 'mutation_rule') or simulation.mutation_rule is None:
         return "No mutation rule configured"
     
@@ -607,5 +667,4 @@ def format_mutation_rule_info(simulation) -> str:
     else:
         rule_text += f"Configuration:\n  • Type: {rule_type}\n"
     
-    return rule_text
     return rule_text

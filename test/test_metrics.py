@@ -10,6 +10,7 @@ class MockSimulation:
     """Mock simulation for metrics tracking tests."""
     
     def __init__(self, num_drivers=3):
+        """Initialize mock simulation with default test state."""
         self.time = 0
         self.served_count = 0
         self.expired_count = 0
@@ -20,11 +21,18 @@ class MockSimulation:
                    behaviour=GreedyDistanceBehaviour(10.0))
             for i in range(num_drivers)
         ]
-        # Initialize all drivers to IDLE status
         for driver in self.drivers:
             driver.status = 'IDLE'
         self.offer_history = []
-        self.mutation_rule = None
+        self.mutation_rule = MockMutationRule()
+
+
+class MockMutationRule:
+    """Mock mutation rule for testing."""
+    
+    def __init__(self):
+        """Initialize empty mutation history."""
+        self.mutation_history = []
 
 
 class TestSimulationTimeSeriesInitialization(unittest.TestCase):
@@ -156,16 +164,34 @@ class TestBehaviourTracking(unittest.TestCase):
         self.assertEqual(dist['GreedyDistanceBehaviour'], 3)
     
     def test_mutation_detection(self):
-        """Mutations are detected when behaviour changes."""
-        # First tick
+        """Mutations are detected from mutation_history."""
+        # First tick (time=0)
         self.ts.record_tick(self.sim)
         initial_mutations = self.ts._total_mutations
         
-        # Change one driver's behaviour
-        from phase2.behaviours import LazyBehaviour
-        self.sim.drivers[0].behaviour = LazyBehaviour(idle_ticks_needed=5)
+        # Advance time to next tick
+        self.sim.time = 1
         
-        # Second tick should detect mutation
+        # Simulate a mutation by adding to mutation_history
+        # (normally done by HybridMutation during tick)
+        from phase2.behaviours import LazyBehaviour
+        old_behaviour = self.sim.drivers[0].behaviour.__class__.__name__
+        new_behaviour = LazyBehaviour(idle_ticks_needed=5)
+        self.sim.drivers[0].behaviour = new_behaviour
+        
+        # Add mutation record at time - 1 (since record_tick looks for mutations from the completed tick)
+        # This mimics: mutations recorded during phase 8 at time T, time incremented to T+1 in phase 9,
+        # then record_tick called which looks for mutations at (T+1)-1 = T
+        self.sim.mutation_rule.mutation_history.append({
+            'time': self.sim.time - 1,  # Record at previous time (when tick occurred)
+            'driver_id': self.sim.drivers[0].id,
+            'from_behaviour': old_behaviour,
+            'to_behaviour': new_behaviour.__class__.__name__,
+            'reason': 'test_mutation',
+            'avg_fare': 5.5
+        })
+        
+        # Record tick at time=1, should detect 1 new mutation from tick at time=0
         self.ts.record_tick(self.sim)
         
         # Should have detected 1 new mutation

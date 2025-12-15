@@ -5,13 +5,10 @@ import matplotlib.pyplot as plt
 from phase2.report_window import (
     _plot_requests_evolution,
     _plot_service_level_evolution,
-    _plot_wait_time_evolution,
     _plot_utilization_evolution,
     _plot_behaviour_distribution_evolution,
-    _plot_mutation_rate_evolution,
     _plot_driver_mutation_frequency,
     _plot_offers_generated,
-    _plot_offer_acceptance_rate,
     _plot_offer_quality,
     _plot_policy_distribution
 )
@@ -29,6 +26,7 @@ class MockSimulation:
         self.served_count = 50
         self.expired_count = 25
         self.avg_wait = 3.5
+        self.timeout = 20  # Add default timeout for tests
         self.drivers = [
             Driver(id=i, position=Point(i, i), 
                    behaviour=GreedyDistanceBehaviour(10.0))
@@ -92,15 +90,6 @@ class TestPlotFunctions(unittest.TestCase):
         ylim = ax.get_ylim()
         self.assertLessEqual(ylim[1], 105)
     
-    def test_plot_wait_time_evolution(self):
-        """Plot wait time evolution."""
-        fig, ax = plt.subplots()
-        
-        _plot_wait_time_evolution(ax, self.time_series)
-        
-        self.assertIn('Wait Time', ax.get_title())
-        self.assertTrue(len(ax.lines) > 0)
-    
     def test_plot_utilization_evolution(self):
         """Plot utilization evolution."""
         fig, ax = plt.subplots()
@@ -118,14 +107,6 @@ class TestPlotFunctions(unittest.TestCase):
         _plot_behaviour_distribution_evolution(ax, self.time_series)
         
         self.assertIn('Behaviour', ax.get_title())
-    
-    def test_plot_mutation_rate_evolution(self):
-        """Plot mutation rate evolution."""
-        fig, ax = plt.subplots()
-        
-        _plot_mutation_rate_evolution(ax, self.time_series)
-        
-        self.assertIn('Mutation', ax.get_title())
     
     def test_plot_driver_mutation_frequency(self):
         """Plot driver mutation frequency distribution."""
@@ -146,14 +127,6 @@ class TestPlotFunctions(unittest.TestCase):
         
         self.assertEqual(ax.get_title(), 'Offers Generated Per Tick')
     
-    def test_plot_offer_acceptance_rate(self):
-        """Plot offer acceptance rate."""
-        fig, ax = plt.subplots()
-        
-        _plot_offer_acceptance_rate(ax, self.time_series)
-        
-        self.assertIn('Acceptance', ax.get_title())
-    
     def test_plot_offer_quality(self):
         """Plot offer quality."""
         fig, ax = plt.subplots()
@@ -166,12 +139,11 @@ class TestPlotFunctions(unittest.TestCase):
         """Plot policy distribution with data."""
         fig, ax = plt.subplots()
         
-        # Add policy distribution data
-        self.time_series.policy_distribution = [
-            {'PolicyA': 2, 'PolicyB': 3},
-            {'PolicyA': 2, 'PolicyB': 3},
+        # Add actual policy used data
+        self.time_series.actual_policy_used = [
+            'NearestNeighbor', 'NearestNeighbor', 'GlobalGreedy', 'GlobalGreedy', 'NearestNeighbor'
         ]
-        self.time_series.times = [1, 2]
+        self.time_series.times = [1, 2, 3, 4, 5]
         
         _plot_policy_distribution(ax, self.time_series)
         
@@ -183,7 +155,7 @@ class TestPlotFunctions(unittest.TestCase):
         
         _plot_policy_distribution(ax, None)
         
-        self.assertEqual(ax.get_title(), 'Policy Distribution')
+        self.assertIn('Policy', ax.get_title())
 
 
 class TestReportWindowIntegration(unittest.TestCase):
