@@ -184,12 +184,6 @@ def _plot_request_age_evolution(ax, simulation, time_series: Optional[Simulation
     ax.axhline(y=timeout, color='darkred', linestyle='--', linewidth=2.5, 
                label=f'Timeout Threshold ({timeout} ticks)', alpha=0.8)
     
-    # Shade the danger zone (requests near/exceeding timeout)
-    max_age = max(time_series.max_request_age) if time_series.max_request_age else 0
-    if max_age >= timeout * 0.8:  # Shade if any request gets close to timeout
-        ax.axhspan(timeout * 0.8, max(max_age, timeout * 1.1), alpha=0.1, color='red', 
-                   label='Danger Zone (80%+ of timeout)')
-    
     ax.fill_between(time_series.times, time_series.max_request_age, alpha=0.15, color='red')
     ax.set_xlabel('Simulation Time (ticks)')
     ax.set_ylabel('Request Age (ticks)')
