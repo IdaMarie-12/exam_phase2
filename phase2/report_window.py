@@ -2,11 +2,20 @@
 
 from typing import Optional
 
-from .helpers_2.metrics_helpers import (
-    SimulationTimeSeries, get_behaviour_distribution, PLOT_COLOURS,
-    format_summary_statistics, format_behaviour_statistics,
-    format_impact_metrics, format_mutation_rule_info
-)
+try:
+    # Try relative import first (when imported as module)
+    from .helpers_2.metrics_helpers import (
+        SimulationTimeSeries, get_behaviour_distribution, PLOT_COLOURS,
+        format_summary_statistics, format_behaviour_statistics,
+        format_impact_metrics, format_mutation_rule_info
+    )
+except ImportError:
+    # Fallback to absolute import (for direct execution)
+    from phase2.helpers_2.metrics_helpers import (
+        SimulationTimeSeries, get_behaviour_distribution, PLOT_COLOURS,
+        format_summary_statistics, format_behaviour_statistics,
+        format_impact_metrics, format_mutation_rule_info
+    )
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
