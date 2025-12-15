@@ -129,9 +129,9 @@ def gen_requests(simulation):
 
 
 def expire_requests(simulation):
-    """Mark WAITING requests as EXPIRED if age > timeout. Increment expired_count. O(R)."""
+    """Mark WAITING requests as EXPIRED if age >= timeout. Increment expired_count. O(R)."""
     for r in simulation.requests:
-        if r.status == WAITING and (simulation.time - r.creation_time) > simulation.timeout:
+        if r.status == WAITING and (simulation.time - r.creation_time) >= simulation.timeout:
             r.mark_expired(simulation.time)
             simulation.expired_count += 1
 
