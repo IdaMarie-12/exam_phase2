@@ -23,6 +23,7 @@ class DeliverySimulation:
         self.time = 0
         self.drivers = drivers
         self.requests = []
+        self.offer_history = []  # Track all offers for metrics
 
         self.dispatch_policy = dispatch_policy
         self.request_generator = request_generator

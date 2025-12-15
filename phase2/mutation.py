@@ -278,19 +278,25 @@ class HybridMutation(MutationRule):
         
         # PRIMARY: Performance-based switching
         if avg < self.low_threshold:
-            # Struggling: switch to greedy (accept more jobs)
-            driver.behaviour = GreedyDistanceBehaviour(max_distance=GREEDY_MAX_DISTANCE)
-            self._track_transition(old_behaviour_name, "GreedyDistanceBehaviour")
-            self._record_detailed_mutation(driver.id, time, old_behaviour_name, "GreedyDistanceBehaviour", 
-                                         "performance_low_earnings", avg)
-            self._record_mutation(driver, time)
+            # Struggling: switch to greedy if not already there
+            if "Greedy" not in old_behaviour_name:
+                # Not in Greedy yet - try greedy approach to accept more jobs
+                driver.behaviour = GreedyDistanceBehaviour(max_distance=GREEDY_MAX_DISTANCE)
+                self._track_transition(old_behaviour_name, "GreedyDistanceBehaviour")
+                self._record_detailed_mutation(driver.id, time, old_behaviour_name, "GreedyDistanceBehaviour", 
+                                             "performance_low_earnings", avg)
+                self._record_mutation(driver, time)
+            # else: already greedy, no mutation - let stagnation or exit conditions handle it
         elif avg > self.high_threshold:
-            # Thriving: switch to earnings-max (become selective)
-            driver.behaviour = EarningsMaxBehaviour(min_reward_per_time=EARNINGS_MIN_REWARD_PER_TIME)
-            self._track_transition(old_behaviour_name, "EarningsMaxBehaviour")
-            self._record_detailed_mutation(driver.id, time, old_behaviour_name, "EarningsMaxBehaviour",
-                                         "performance_high_earnings", avg)
-            self._record_mutation(driver, time)
+            # Thriving: switch to earnings-max if not already there
+            if "Earnings" not in old_behaviour_name:
+                # Not in EarningsMax yet - try earnings-max approach for selectivity
+                driver.behaviour = EarningsMaxBehaviour(min_reward_per_time=EARNINGS_MIN_REWARD_PER_TIME)
+                self._track_transition(old_behaviour_name, "EarningsMaxBehaviour")
+                self._record_detailed_mutation(driver.id, time, old_behaviour_name, "EarningsMaxBehaviour",
+                                             "performance_high_earnings", avg)
+                self._record_mutation(driver, time)
+            # else: already in earnings-max, no mutation - let stagnation or exit conditions handle it
         elif self._is_stagnating(driver):
             # SECONDARY: Stagnating performance → explore to break pattern
             # Exploration probability determines if we mutate when stagnating

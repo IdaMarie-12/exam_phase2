@@ -58,30 +58,26 @@ class TestOfferCreation(unittest.TestCase):
         self.assertIsNone(offer.policy_name)
 
     def test_offer_created_at_default(self):
-        """Offer has created_at timestamp set by default."""
-        before = datetime.now()
+        """Offer has created_at as None by default (set by simulation)."""
         offer = Offer(
             driver=self.driver,
             request=self.request,
             estimated_travel_time=10.0,
             estimated_reward=15.0,
         )
-        after = datetime.now()
-        self.assertIsNotNone(offer.created_at)
-        self.assertGreaterEqual(offer.created_at, before)
-        self.assertLessEqual(offer.created_at, after)
+        self.assertIsNone(offer.created_at)
 
     def test_offer_created_at_explicit(self):
-        """Offer accepts explicit created_at timestamp."""
-        ts = datetime(2025, 12, 12, 10, 30, 45)
+        """Offer accepts explicit created_at tick number."""
+        tick = 42
         offer = Offer(
             driver=self.driver,
             request=self.request,
             estimated_travel_time=10.0,
             estimated_reward=15.0,
-            created_at=ts,
+            created_at=tick,
         )
-        self.assertEqual(offer.created_at, ts)
+        self.assertEqual(offer.created_at, tick)
 
 
 class TestRewardPerTime(unittest.TestCase):
@@ -277,7 +273,7 @@ class TestAsDict(unittest.TestCase):
             dropoff=Point(15.0, 15.0),
             creation_time=0
         )
-        self.ts = datetime(2025, 12, 12, 10, 30, 45)
+        self.ts = 42  # Simulation tick number
 
     def test_as_dict_contains_all_fields(self):
         """as_dict includes all offer metrics."""
@@ -347,7 +343,7 @@ class TestAsDict(unittest.TestCase):
         self.assertIsNone(d["policy_name"])
 
     def test_as_dict_created_at_iso_format(self):
-        """as_dict converts created_at to ISO format string."""
+        """as_dict returns created_at tick number as-is."""
         offer = Offer(
             driver=self.driver,
             request=self.request,
@@ -357,7 +353,7 @@ class TestAsDict(unittest.TestCase):
         )
         d = offer.as_dict()
         
-        self.assertEqual(d["created_at"], "2025-12-12T10:30:45")
+        self.assertEqual(d["created_at"], self.ts)
 
     def test_as_dict_without_created_at(self):
         """as_dict handles None created_at."""
