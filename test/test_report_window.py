@@ -29,6 +29,7 @@ class MockSimulation:
         self.served_count = 50
         self.expired_count = 25
         self.avg_wait = 3.5
+        self.timeout = 20  # Add default timeout for tests
         self.drivers = [
             Driver(id=i, position=Point(i, i), 
                    behaviour=GreedyDistanceBehaviour(10.0))

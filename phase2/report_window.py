@@ -89,7 +89,7 @@ def _show_metrics_window(simulation, time_series: Optional[SimulationTimeSeries]
     
     # Plot 5: Request Age Pressure
     ax5 = fig1.add_subplot(gs[2, 1])
-    _plot_request_age_evolution(ax5, time_series)
+    _plot_request_age_evolution(ax5, simulation, time_series)
     
     # Plot 6: Summary Statistics
     ax6 = fig1.add_subplot(gs[3, :])
@@ -166,8 +166,8 @@ def _plot_pending_requests(ax, time_series: Optional[SimulationTimeSeries]) -> N
                      'Pending Requests Over Time', 'Queue Depth', fill=True)
 
 
-def _plot_request_age_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot max and avg request age to show queue pressure."""
+def _plot_request_age_evolution(ax, simulation, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot max and avg request age to show queue pressure relative to timeout threshold."""
     if time_series is None or not time_series.max_request_age:
         ax.text(0.5, 0.5, 'No request age data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
@@ -175,15 +175,26 @@ def _plot_request_age_evolution(ax, time_series: Optional[SimulationTimeSeries])
         return
     
     ax.plot(time_series.times, time_series.max_request_age, linewidth=2, color='red', 
-            marker='.', label='Max Age', alpha=0.7)
+            marker='.', label='Max Age (oldest request)', alpha=0.7)
     ax.plot(time_series.times, time_series.avg_request_age, linewidth=2, color='orange', 
             marker='s', markersize=2, label='Avg Age', alpha=0.7)
+    
+    # Add timeout threshold line
+    timeout = simulation.timeout
+    ax.axhline(y=timeout, color='darkred', linestyle='--', linewidth=2.5, 
+               label=f'Timeout Threshold ({timeout} ticks)', alpha=0.8)
+    
+    # Shade the danger zone (requests near/exceeding timeout)
+    max_age = max(time_series.max_request_age) if time_series.max_request_age else 0
+    if max_age >= timeout * 0.8:  # Shade if any request gets close to timeout
+        ax.axhspan(timeout * 0.8, max(max_age, timeout * 1.1), alpha=0.1, color='red', 
+                   label='Danger Zone (80%+ of timeout)')
     
     ax.fill_between(time_series.times, time_series.max_request_age, alpha=0.15, color='red')
     ax.set_xlabel('Simulation Time (ticks)')
     ax.set_ylabel('Request Age (ticks)')
-    ax.set_title('Request Age Pressure (Queue Latency)')
-    ax.legend(loc='upper left')
+    ax.set_title('Request Age Pressure (Queue Latency vs Timeout)')
+    ax.legend(loc='upper left', fontsize=9)
     ax.grid(True, alpha=0.3)
 
 
