@@ -251,7 +251,6 @@ class TestAdaptiveHybridPolicy(unittest.TestCase):
 
     def test_more_drivers_than_requests_uses_nearest_neighbor(self):
         """When drivers > requests, use NearestNeighbor (requests NOT > drivers)."""
-        # 5 drivers, 2 requests → requests NOT > drivers
         drivers = [
             Mock(spec=Driver, status=IDLE, position=Point(0, 0), id=i, speed=1.0)
             for i in range(1, 6)
@@ -270,7 +269,7 @@ class TestAdaptiveHybridPolicy(unittest.TestCase):
 
     def test_more_requests_than_drivers_uses_global_greedy(self):
         """When requests > drivers, use GlobalGreedy."""
-        # 2 drivers, 5 requests → requests > drivers triggers GG
+        # 2 drivers, 5 requests → requests > drivers triggers GlobalGreedy
         drivers = [
             Mock(spec=Driver, status=IDLE, position=Point(0, 0), id=1, speed=1.0),
             Mock(spec=Driver, status=IDLE, position=Point(5, 5), id=2, speed=1.0),
@@ -340,8 +339,8 @@ class TestAdaptiveHybridPolicy(unittest.TestCase):
         self.assertEqual(len(result), 1)
 
     def test_more_requests_than_drivers_boundary(self):
-        """Test boundary: 4 drivers, 5 requests (requests > drivers, use GG)."""
-        # 4 drivers, 5 requests → requests > drivers, use GG
+        """Test boundary: 4 drivers, 5 requests."""
+        # 4 drivers, 5 requests → requests > drivers, use GlobalGreedy
         drivers = [
             Mock(spec=Driver, status=IDLE, position=Point(i, i), id=i, speed=1.0)
             for i in range(1, 5)
@@ -356,8 +355,8 @@ class TestAdaptiveHybridPolicy(unittest.TestCase):
         self.assertEqual(len(result), 4)
 
     def test_more_drivers_than_requests_boundary(self):
-        """Test boundary: 6 drivers, 5 requests (requests NOT > drivers, use NN)."""
-        # 6 drivers, 5 requests → requests < drivers, use NN
+        """Test boundary: 6 drivers, 5 requests."""
+        # 6 drivers, 5 requests → requests < drivers, use NearestNeighbor
         drivers = [
             Mock(spec=Driver, status=IDLE, position=Point(i, i), id=i, speed=1.0)
             for i in range(1, 7)
@@ -368,7 +367,7 @@ class TestAdaptiveHybridPolicy(unittest.TestCase):
         ]
 
         result = self.policy.assign(drivers, requests, 0)
-        # Should use NN, assign all 5 requests
+        # Should use NearestNeighbor, assign all 5 requests
         self.assertEqual(len(result), 5)
 
     def test_all_assignments_are_unique_pairs(self):

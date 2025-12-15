@@ -16,7 +16,6 @@ EXPIRED = "EXPIRED"      # Expired (not picked up in time)
 @dataclass
 class Request:
     """Delivery request and its lifecycle state.
-
     Tracks pickup/dropoff, creation time, assigned driver, status, and wait time.
     Status transitions: WAITING → ASSIGNED → PICKED → DELIVERED (or EXPIRED).
     """

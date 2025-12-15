@@ -52,7 +52,7 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
     requests = [create_request_from_dict(r) for r in requests_data]
     
     # Create dispatch policy (determines how requests are assigned to drivers)
-    # AdaptiveHybridPolicy intelligently diversifies strategies based on driver-request ratio
+    # AdaptiveHybridPolicy changes strategies based on driver-request ratio
     policy = AdaptiveHybridPolicy()
     
     # Create mutation rule (allows drivers to change behaviour based on performance)

@@ -94,7 +94,6 @@ class TestInitState(unittest.TestCase):
 
     def test_init_state_requires_drivers(self):
         """init_state requires at least one driver."""
-        # DeliverySimulation requires at least one driver
         with self.assertRaises(ValueError):
             init_state([], [], timeout=1000, req_rate=1.0, width=50, height=50)
 
@@ -116,7 +115,6 @@ class TestInitState(unittest.TestCase):
         
         sim = get_simulation()
         # Pre-loaded requests are stored but not immediately added
-        # Request with creation_time=0 should be added on first tick
         self.assertTrue(hasattr(sim, '_all_csv_requests'))
         self.assertGreater(len(sim._all_csv_requests), 0)
 
@@ -144,14 +142,14 @@ class TestSimulateStep(unittest.TestCase):
         result_state, _ = simulate_step(self.state)
         new_time = result_state.get('t', 0)
         
-        self.assertGreaterEqual(new_time, old_time)  # Time may stay same for one step
+        self.assertGreaterEqual(new_time, old_time)
 
     def test_multiple_steps_increment_time(self):
         """Multiple steps increment time correctly."""
         state1, _ = simulate_step(self.state)
         state2, _ = simulate_step(state1)
         
-        self.assertGreaterEqual(state2['t'], state1['t'])  # Time increments or stays same
+        self.assertGreaterEqual(state2['t'], state1['t'])
 
     def test_simulate_step_returns_valid_state(self):
         """simulate_step returns state dict with required keys."""
@@ -376,7 +374,6 @@ class TestAdapterErrorHandling(unittest.TestCase):
 
     def test_simulate_step_with_invalid_state(self):
         """simulate_step handles invalid state gracefully."""
-        # Completely empty/invalid state or None raises RuntimeError
         with self.assertRaises((TypeError, AttributeError, KeyError, RuntimeError)):
             simulate_step(None)
 
