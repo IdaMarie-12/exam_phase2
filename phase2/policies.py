@@ -7,6 +7,9 @@ if TYPE_CHECKING:
     from phase2.driver import Driver
     from phase2.request import Request
 
+# Prevent division by zero for stationary drivers
+MIN_SPEED = 1e-6
+
 
 # ====================================================================
 # Dispatch Policy Base Class
@@ -40,19 +43,19 @@ class NearestNeighborPolicy(DispatchPolicy):
             requests: List["Request"],
             time: int
         ) -> List[Tuple["Driver", "Request"]]:
-        """Propose pairs using iterative greedy nearest-neighbor matching."""
+        """Propose pairs using iterative greedy nearest-neighbor matching by distance."""
         # Filter only idle drivers and waiting requests
         idle = [d for d in drivers if d.status == IDLE]
         waiting = [r for r in requests if r.status == WAITING]
 
         pairs: List[Tuple["Driver", "Request"]] = []
 
-        # Greedy iterative nearest matching
+        # Greedy iterative nearest matching by distance
         while idle and waiting:
             best_dist = float("inf")  # Initialize best distance as infinity
             best_pair = None           # Initialize best pair as None
 
-            # Find the closest driver-request pair
+            # Find the driver-request pair with shortest distance
             for d in idle:
                 for r in waiting:
                     # Compute Euclidean distance
@@ -80,8 +83,8 @@ class NearestNeighborPolicy(DispatchPolicy):
 
 class GlobalGreedyPolicy(DispatchPolicy):
     """Global greedy dispatch policy with distance-based optimization.
-    Computes all driver-request distances, sorts by distance, then greedily
-    selects shortest pairs. O(nm log(nm)), better quality than nearest-neighbor.
+    Computes all driver-request distances, sorts by distance,
+    then greedily selects closest pairs. O(nm log(nm)), better quality than nearest-neighbor.
     """
 
     def assign(
@@ -111,7 +114,7 @@ class GlobalGreedyPolicy(DispatchPolicy):
         assigned_requests = set()
         result: List[Tuple["Driver", "Request"]] = []
 
-        # Greedily pick the shortest pairs, avoiding reuse of driver/request
+        # Greedily pick the closest pairs, avoiding reuse of driver/request
         for dist, d, r in all_pairs:
             if d.id in assigned_drivers or r.id in assigned_requests:
                 continue  # Skip if driver or request already assigned
@@ -120,3 +123,47 @@ class GlobalGreedyPolicy(DispatchPolicy):
             assigned_requests.add(r.id)
 
         return result
+
+
+
+# ====================================================================
+# Adaptive Hybrid Policy (Binary Selection by Driver-Request Ratio)
+# ====================================================================
+
+class AdaptiveHybridPolicy(DispatchPolicy):
+    """Intelligent hybrid dispatch that adapts based on driver-request ratio.
+    
+    Simple binary strategy:
+    - When requests > drivers: Use GlobalGreedy (optimize utilization of limited drivers)
+    - When drivers >= requests: Use NearestNeighbor (fast/responsive with abundant drivers)
+    
+    Both policies are actively used depending on operational load conditions.
+    Both use distance as the primary matching criterion.
+    """
+
+    def assign(
+        self,
+        drivers: List["Driver"],
+        requests: List["Request"],
+        time: int
+    ) -> List[Tuple["Driver", "Request"]]:
+        """Assign drivers to requests with binary strategy based on load balance.
+        
+        Selects between GlobalGreedy (optimize scarce resources) and 
+        NearestNeighbor (fast with abundant drivers) based on current ratio.
+        """
+        # Filter idle drivers and waiting requests
+        idle = [d for d in drivers if d.status == IDLE]
+        waiting = [r for r in requests if r.status == WAITING]
+
+        if not idle or not waiting:
+            return []
+
+        # Binary decision: more requests than drivers?
+        if len(waiting) > len(idle):
+            # More requests than drivers: Use GlobalGreedy for resource optimization
+            return GlobalGreedyPolicy().assign(idle, waiting, time)
+        else:
+            # Drivers >= requests: Use NearestNeighbor for responsive speed
+            return NearestNeighborPolicy().assign(idle, waiting, time)
+

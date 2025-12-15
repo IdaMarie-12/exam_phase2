@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Tuple, Optional
 from phase1.io_mod import load_drivers, load_requests, generate_drivers
 from .generator import RequestGenerator
-from .policies import GlobalGreedyPolicy
+from .policies import AdaptiveHybridPolicy
 from .mutation import HybridMutation
 from .simulation import DeliverySimulation
 from .helpers_2.engine_helpers import (
@@ -52,7 +52,8 @@ def init_state(drivers_data: List[dict], requests_data: List[dict],
     requests = [create_request_from_dict(r) for r in requests_data]
     
     # Create dispatch policy (determines how requests are assigned to drivers)
-    policy = GlobalGreedyPolicy()
+    # AdaptiveHybridPolicy intelligently diversifies strategies based on driver-request ratio
+    policy = AdaptiveHybridPolicy()
     
     # Create mutation rule (allows drivers to change behaviour based on performance)
     mutation_rule = HybridMutation(low_threshold=3.0, high_threshold=10.0)

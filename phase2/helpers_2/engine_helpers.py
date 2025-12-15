@@ -163,7 +163,7 @@ def collect_offers(simulation, proposals):
 
 
 def resolve_conflicts(simulation, offers):
-    """Group offers by request, keep only nearest driver per request. O(O*log O)."""
+    """Group offers by request, keep only closest driver per request (by distance). O(O*log O)."""
     if not isinstance(offers, list):
         raise TypeError(f"offers must be list, got {type(offers).__name__}")
     
@@ -173,7 +173,8 @@ def resolve_conflicts(simulation, offers):
         grouped[o.request.id].append(o)
     final = []
     for same_req in grouped.values():
-        same_req.sort(key=lambda o: o.driver.position.distance_to(o.request.pickup))
+        # Sort by distance (ascending - closest first)
+        same_req.sort(key=lambda o: o.pickup_distance())
         final.append(same_req[0])
     return final
 
