@@ -601,8 +601,8 @@ def _plot_policy_offer_summary(ax, simulation, time_series: Optional[SimulationT
         # Build policy information
         policies_used = ', '.join(sorted(time_series.policy_names)) if time_series.policy_names else 'None'
         
-        # If AdaptiveHybridPolicy, show which sub-policy was used more often
-        adaptive_note = ""
+        # If AdaptiveHybridPolicy, show which sub-policy was actually used
+        actual_policy_display = ""
         if 'AdaptiveHybridPolicy' in time_series.policy_names and summary.get('actual_policy_usage'):
             actual_usage = summary.get('actual_policy_usage', {})
             nn_count = actual_usage.get('NearestNeighborPolicy', 0)
@@ -612,8 +612,8 @@ def _plot_policy_offer_summary(ax, simulation, time_series: Optional[SimulationT
             if total_uses > 0:
                 nn_pct = (nn_count / total_uses * 100)
                 gg_pct = (gg_count / total_uses * 100)
-                adaptive_note = f"""
-Actual Policy Used (Adaptive Breakdown):
+                actual_policy_display = f"""
+Actual Sub-Policies Used:
   • NearestNeighbor:       {nn_count} ticks ({nn_pct:.1f}%)
   • GlobalGreedy:          {gg_count} ticks ({gg_pct:.1f}%)
 """
@@ -627,7 +627,7 @@ Average Acceptance Rate:   {summary.get('avg_acceptance_rate', 0):.1f}%
 Average Offer Quality:     {summary.get('avg_offer_quality', 0):.4f} (Reward/Time)
 Matching Efficiency:       {summary.get('avg_matching_efficiency', 0):.1f}%
 
-Policy Configuration:      {policies_used}{adaptive_note}
+Dispatch Policy:           {policies_used}{actual_policy_display}
 """
     
     ax.text(0.05, 0.95, summary_text, transform=ax.transAxes,
