@@ -54,6 +54,34 @@ class SimulationTimeSeries:
         self.policy_distribution = []      # List of dicts tracking drivers per policy per tick
         self.avg_offer_quality = []        # Average reward/time ratio per tick
         
+        # Request queue dynamics
+        self.pending_requests = []         # Number of waiting requests per tick
+        self.rejection_rate = []           # % of offers drivers reject per tick
+        self.max_request_age = []          # Maximum age of any waiting request per tick
+        self.avg_request_age = []          # Average age of all waiting requests per tick
+        
+        # Dispatch efficiency
+        self.offers_vs_assignments = []    # (offers_generated, offers_accepted) per tick for efficiency
+        self.conflict_count = []           # Number of offers competing for same request per tick
+        self.matching_efficiency = []      # % of offers that became assignments per tick
+        
+        # Driver state distribution
+        self.driver_status_distribution = []  # Dict of {status: count} per tick
+        
+        # Request completion quality
+        self.completion_time_samples = []     # List of (pickup_time, delivery_time) tuples
+        self.avg_total_trip_distance = []     # Average distance drivers travel per request per tick
+        
+        # Behaviour-specific insights
+        self.earnings_by_behaviour = defaultdict(list)  # Track avg earnings per behaviour per tick
+        self.acceptance_rate_by_behaviour = defaultdict(list)  # Track acceptance rate by behaviour type
+        self.behaviour_performance_ratio = []  # Service level by behaviour type per tick
+        
+        # System load indicators
+        self.request_generation_rate = []  # Actual requests generated per tick
+        self.expiration_rate = []          # % of requests expired per tick
+        self.served_to_expired_ratio = []  # KPI: served / (served + expired) per tick
+        
         # Internal state tracking
         self._previous_behaviours = {}     # Map of driver_id -> behaviour_type
         self._total_mutations = 0          # Cumulative mutation counter
@@ -66,6 +94,8 @@ class SimulationTimeSeries:
         }  # Breakdown of mutations by reason
         self._mutations_last_10_ticks = 0  # Track mutations in last 10 ticks for rate
         self._recent_driver_mutations = {}  # Track which drivers mutated recently (last 5 ticks)
+        self._previous_requests_count = 0  # Track request generation per tick
+        self._previous_expired_count = 0   # Track expiration per tick
     
     def record_tick(self, simulation):
         """Capture current simulation state including behaviour changes."""
@@ -104,6 +134,9 @@ class SimulationTimeSeries:
         
         self._track_behaviour_changes(simulation)
         self._track_offers_and_policies(simulation)
+        self._track_request_queue_dynamics(simulation)
+        self._track_driver_state_distribution(simulation)
+        self._track_system_load_indicators(simulation)
     
     def _track_behaviour_changes(self, simulation):
         """Track driver behaviour mutations, transitions, and stability."""
@@ -258,6 +291,94 @@ class SimulationTimeSeries:
         self.avg_offer_quality.append(avg_quality)
         self.offer_acceptance_rate.append(acceptance_rate)
         self.policy_distribution.append(dict(policy_driver_counts))
+        
+        # Calculate offers vs assignments efficiency
+        offers_accepted = len([o for o in current_tick_offers if getattr(o.request, 'status', None) != 'WAITING'])
+        self.offers_vs_assignments.append((len(current_tick_offers), offers_accepted))
+        
+        # Calculate matching efficiency
+        matching_eff = (offers_accepted / len(current_tick_offers) * 100.0) if current_tick_offers else 0.0
+        self.matching_efficiency.append(matching_eff)
+        
+        # Calculate rejection rate (offers that were rejected)
+        offers_rejected = len([o for o in current_tick_offers if getattr(o.request, 'status', None) == 'WAITING'])
+        rejection_rate = (offers_rejected / len(current_tick_offers) * 100.0) if current_tick_offers else 0.0
+        self.rejection_rate.append(rejection_rate)
+        
+        # Count conflicts (offers competing for same request)
+        request_offer_counts = defaultdict(int)
+        for offer in current_tick_offers:
+            request_id = getattr(offer.request, 'id', None)
+            if request_id is not None:
+                request_offer_counts[request_id] += 1
+        
+        conflict_count = len([count for count in request_offer_counts.values() if count > 1])
+        self.conflict_count.append(conflict_count)
+        
+        # Track behaviour-specific acceptance rates
+        behaviour_offers = defaultdict(lambda: {'total': 0, 'accepted': 0})
+        for offer in current_tick_offers:
+            behaviour = getattr(offer.driver, 'behaviour', None)
+            if behaviour:
+                behaviour_name = type(behaviour).__name__
+                behaviour_offers[behaviour_name]['total'] += 1
+                if getattr(offer.request, 'status', None) != 'WAITING':
+                    behaviour_offers[behaviour_name]['accepted'] += 1
+        
+        for behaviour_name, counts in behaviour_offers.items():
+            acceptance_rate_beh = (counts['accepted'] / counts['total'] * 100.0) if counts['total'] > 0 else 0.0
+            self.acceptance_rate_by_behaviour[behaviour_name].append(acceptance_rate_beh)
+    
+    def _track_request_queue_dynamics(self, simulation) -> None:
+        """Track pending requests, rejection rates, and request ages."""
+        # Count pending (WAITING) requests
+        pending_count = len([r for r in simulation.requests if getattr(r, 'status', None) == 'WAITING'])
+        self.pending_requests.append(pending_count)
+        
+        # Track request ages
+        if pending_count > 0:
+            ages = [simulation.time - getattr(r, 'creation_time', simulation.time) 
+                    for r in simulation.requests if getattr(r, 'status', None) == 'WAITING']
+            self.max_request_age.append(max(ages) if ages else 0)
+            self.avg_request_age.append(sum(ages) / len(ages) if ages else 0)
+        else:
+            self.max_request_age.append(0)
+            self.avg_request_age.append(0)
+    
+    def _track_driver_state_distribution(self, simulation) -> None:
+        """Track driver status distribution (IDLE, TO_PICKUP, TO_DROPOFF, etc.)."""
+        status_counts = defaultdict(int)
+        for driver in simulation.drivers:
+            status = getattr(driver, 'status', 'UNKNOWN')
+            status_counts[status] += 1
+        
+        self.driver_status_distribution.append(dict(status_counts))
+        
+        # Track earnings by behaviour type
+        if hasattr(simulation, 'earnings_by_behaviour'):
+            for behaviour_type, earnings_list in simulation.earnings_by_behaviour.items():
+                avg_earnings = sum(earnings_list) / len(earnings_list) if earnings_list else 0.0
+                self.earnings_by_behaviour[behaviour_type].append(avg_earnings)
+    
+    def _track_system_load_indicators(self, simulation) -> None:
+        """Track request generation rate, expiration rate, and served/expired ratio."""
+        # Calculate request generation rate
+        current_total_requests = len(simulation.requests)
+        generated_this_tick = max(0, current_total_requests - self._previous_requests_count)
+        self.request_generation_rate.append(generated_this_tick)
+        self._previous_requests_count = current_total_requests
+        
+        # Calculate expiration rate
+        expired_this_tick = max(0, simulation.expired_count - self._previous_expired_count)
+        total_in_system = simulation.served_count + simulation.expired_count
+        expiration_rate = (expired_this_tick / max(1, total_in_system)) * 100.0
+        self.expiration_rate.append(expiration_rate)
+        self._previous_expired_count = simulation.expired_count
+        
+        # Calculate served-to-expired ratio
+        total = simulation.served_count + simulation.expired_count
+        ratio = (simulation.served_count / total * 100.0) if total > 0 else 0.0
+        self.served_to_expired_ratio.append(ratio)
     
     def get_data(self):
         """Return all time-series data as dict."""
@@ -276,6 +397,17 @@ class SimulationTimeSeries:
             'offer_acceptance_rate': self.offer_acceptance_rate,
             'policy_distribution': self.policy_distribution,
             'avg_offer_quality': self.avg_offer_quality,
+            'pending_requests': self.pending_requests,
+            'rejection_rate': self.rejection_rate,
+            'max_request_age': self.max_request_age,
+            'avg_request_age': self.avg_request_age,
+            'offers_vs_assignments': self.offers_vs_assignments,
+            'conflict_count': self.conflict_count,
+            'matching_efficiency': self.matching_efficiency,
+            'driver_status_distribution': self.driver_status_distribution,
+            'request_generation_rate': self.request_generation_rate,
+            'expiration_rate': self.expiration_rate,
+            'served_to_expired_ratio': self.served_to_expired_ratio,
         }
     
     def get_final_summary(self):
@@ -296,6 +428,17 @@ class SimulationTimeSeries:
         # Count driver mutation frequency distribution
         mutation_freq_dist = Counter(self.driver_mutation_freq.values())
         
+        # Calculate queue and dispatch metrics
+        avg_pending_requests = sum(self.pending_requests) / len(self.pending_requests) if self.pending_requests else 0
+        avg_rejection_rate = sum(self.rejection_rate) / len(self.rejection_rate) if self.rejection_rate else 0.0
+        max_request_age_final = max(self.max_request_age) if self.max_request_age else 0
+        avg_matching_efficiency = sum(self.matching_efficiency) / len(self.matching_efficiency) if self.matching_efficiency else 0.0
+        total_conflicts = sum(self.conflict_count) if self.conflict_count else 0
+        
+        # Calculate request generation and expiration metrics
+        total_generated = sum(self.request_generation_rate) if self.request_generation_rate else 0
+        avg_expiration_rate = sum(self.expiration_rate) / len(self.expiration_rate) if self.expiration_rate else 0.0
+        
         return {
             'total_time': self.times[-1],
             'final_served': self.served[-1],
@@ -313,6 +456,14 @@ class SimulationTimeSeries:
             'avg_offer_quality': avg_offer_quality,
             'avg_acceptance_rate': avg_acceptance_rate,
             'policies_used': list(self.policy_names),
+            'avg_pending_requests': avg_pending_requests,
+            'avg_rejection_rate': avg_rejection_rate,
+            'max_request_age': max_request_age_final,
+            'avg_matching_efficiency': avg_matching_efficiency,
+            'total_offer_conflicts': total_conflicts,
+            'total_requests_generated': total_generated,
+            'avg_expiration_rate': avg_expiration_rate,
+            'final_served_to_expired_ratio': self.served_to_expired_ratio[-1] if self.served_to_expired_ratio else 0.0,
         }
 
 

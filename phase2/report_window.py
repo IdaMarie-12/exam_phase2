@@ -66,10 +66,10 @@ def _plot_time_series(ax, times, data, label, color, title, ylabel, fill=False):
 
 def _show_metrics_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
     """Display window 1: System efficiency metrics and trends."""
-    fig1 = plt.figure(num=1, figsize=(16, 13))
+    fig1 = plt.figure(num=1, figsize=(16, 15))
     fig1.suptitle('System Efficiency Overview', fontsize=16, fontweight='bold')
     
-    gs = gridspec.GridSpec(3, 2, figure=fig1, hspace=0.50, wspace=0.40, top=0.96, bottom=0.06, left=0.08, right=0.96)
+    gs = gridspec.GridSpec(4, 2, figure=fig1, hspace=0.50, wspace=0.40, top=0.96, bottom=0.06, left=0.08, right=0.96)
     
     # Plot 1: Served vs Expired (cumulative)
     ax1 = fig1.add_subplot(gs[0, :])
@@ -79,17 +79,21 @@ def _show_metrics_window(simulation, time_series: Optional[SimulationTimeSeries]
     ax2 = fig1.add_subplot(gs[1, 0])
     _plot_service_level_evolution(ax2, time_series)
     
-    # Plot 3: Average Wait Time
+    # Plot 3: Pending Requests Queue
     ax3 = fig1.add_subplot(gs[1, 1])
-    _plot_wait_time_evolution(ax3, time_series)
+    _plot_pending_requests(ax3, time_series)
     
     # Plot 4: Driver Utilization
     ax4 = fig1.add_subplot(gs[2, 0])
     _plot_utilization_evolution(ax4, time_series)
     
-    # Plot 5: Summary Statistics
+    # Plot 5: Request Age Pressure
     ax5 = fig1.add_subplot(gs[2, 1])
-    _plot_summary_statistics(ax5, simulation, time_series)
+    _plot_request_age_evolution(ax5, time_series)
+    
+    # Plot 6: Summary Statistics
+    ax6 = fig1.add_subplot(gs[3, :])
+    _plot_summary_statistics(ax6, simulation, time_series)
 
 
 def _plot_requests_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
@@ -148,6 +152,39 @@ def _plot_utilization_evolution(ax, time_series: Optional[SimulationTimeSeries])
     ax.axhline(y=100, color='red', linestyle='--', alpha=0.5, label='Max')
     ax.set_ylim([0, 110])
     ax.legend(loc='upper left')
+
+
+def _plot_pending_requests(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot number of pending (waiting) requests over time."""
+    if time_series is None or not time_series.pending_requests:
+        ax.text(0.5, 0.5, 'No pending request data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Pending Requests Queue')
+        return
+    
+    _plot_time_series(ax, time_series.times, time_series.pending_requests, 'Pending', 'orange',
+                     'Pending Requests Over Time', 'Queue Depth', fill=True)
+
+
+def _plot_request_age_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot max and avg request age to show queue pressure."""
+    if time_series is None or not time_series.max_request_age:
+        ax.text(0.5, 0.5, 'No request age data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Request Age Pressure')
+        return
+    
+    ax.plot(time_series.times, time_series.max_request_age, linewidth=2, color='red', 
+            marker='.', label='Max Age', alpha=0.7)
+    ax.plot(time_series.times, time_series.avg_request_age, linewidth=2, color='orange', 
+            marker='s', markersize=2, label='Avg Age', alpha=0.7)
+    
+    ax.fill_between(time_series.times, time_series.max_request_age, alpha=0.15, color='red')
+    ax.set_xlabel('Simulation Time (ticks)')
+    ax.set_ylabel('Request Age (ticks)')
+    ax.set_title('Request Age Pressure (Queue Latency)')
+    ax.legend(loc='upper left')
+    ax.grid(True, alpha=0.3)
 
 
 def _plot_summary_statistics(ax, simulation, time_series: Optional[SimulationTimeSeries]) -> None:
@@ -385,31 +422,35 @@ def _show_policy_offer_window(simulation, time_series: Optional[SimulationTimeSe
                 transform=ax.transAxes, fontsize=12)
         return
     
-    fig4 = plt.figure(num=4, figsize=(16, 13))
+    fig4 = plt.figure(num=4, figsize=(16, 15))
     fig4.suptitle('Policy & Offer Effectiveness', fontsize=14, fontweight='bold')
     
-    # Create grid: 3 rows, 2 columns
-    gs = gridspec.GridSpec(3, 2, figure=fig4, hspace=0.40, wspace=0.40, top=0.96, bottom=0.06, left=0.08, right=0.96)
+    # Create grid: 4 rows, 2 columns
+    gs = gridspec.GridSpec(4, 2, figure=fig4, hspace=0.40, wspace=0.40, top=0.96, bottom=0.06, left=0.08, right=0.96)
     
     # Plot 0: Offers generated over time
     ax0 = fig4.add_subplot(gs[0, 0])
     _plot_offers_generated(ax0, time_series)
     
-    # Plot 1: Offer acceptance rate
+    # Plot 1: Matching efficiency (% of offers that became assignments)
     ax1 = fig4.add_subplot(gs[0, 1])
-    _plot_offer_acceptance_rate(ax1, time_series)
+    _plot_matching_efficiency(ax1, time_series)
     
     # Plot 2: Average offer quality
     ax2 = fig4.add_subplot(gs[1, 0])
     _plot_offer_quality(ax2, time_series)
     
-    # Plot 3: Policy distribution over time
+    # Plot 3: Rejection rate
     ax3 = fig4.add_subplot(gs[1, 1])
-    _plot_policy_distribution(ax3, time_series)
+    _plot_rejection_rate(ax3, time_series)
     
-    # Plot 4: Summary statistics
+    # Plot 4: Policy distribution over time
     ax4 = fig4.add_subplot(gs[2, :])
-    _plot_policy_offer_summary(ax4, simulation, time_series)
+    _plot_policy_distribution(ax4, time_series)
+    
+    # Plot 5: Summary statistics
+    ax5 = fig4.add_subplot(gs[3, :])
+    _plot_policy_offer_summary(ax5, simulation, time_series)
 
 
 def _plot_offers_generated(ax, time_series: Optional[SimulationTimeSeries]) -> None:
@@ -450,6 +491,34 @@ def _plot_offer_quality(ax, time_series: Optional[SimulationTimeSeries]) -> None
     _plot_time_series(ax, time_series.times, time_series.avg_offer_quality,
                      'Quality', 'purple', 'Average Offer Quality (Reward/Time)',
                      'Reward per Time Unit', fill=True)
+
+
+def _plot_matching_efficiency(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot matching efficiency (% of offers that became assignments)."""
+    if time_series is None or not time_series.matching_efficiency:
+        ax.text(0.5, 0.5, 'No efficiency data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Offer Matching Efficiency')
+        return
+    
+    _plot_time_series(ax, time_series.times, time_series.matching_efficiency,
+                     'Efficiency', 'darkgreen', 'Offer-to-Assignment Conversion Rate',
+                     'Efficiency (%)', fill=True)
+    ax.set_ylim([0, 105])
+
+
+def _plot_rejection_rate(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot driver rejection rate (% of offers drivers reject)."""
+    if time_series is None or not time_series.rejection_rate:
+        ax.text(0.5, 0.5, 'No rejection data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Offer Rejection Rate')
+        return
+    
+    _plot_time_series(ax, time_series.times, time_series.rejection_rate,
+                     'Rejection', 'crimson', 'Driver Rejection Rate (Behaviour Impact)',
+                     'Rejection Rate (%)', fill=True)
+    ax.set_ylim([0, 105])
 
 
 def _plot_policy_distribution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
