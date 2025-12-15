@@ -480,6 +480,11 @@ class SimulationTimeSeries:
         # Calculate actual policy usage (for Adaptive breakdown)
         policy_usage = Counter(self.actual_policy_used)
         
+        # Calculate utilization variance (measures system load consistency)
+        import statistics
+        utilization_variance = statistics.variance(self.utilization) if len(self.utilization) > 1 else 0.0
+        avg_utilization = sum(self.utilization) / len(self.utilization) if self.utilization else 0.0
+        
         return {
             'total_time': self.times[-1],
             'final_served': self.served[-1],
@@ -506,6 +511,8 @@ class SimulationTimeSeries:
             'total_requests_generated': total_generated,
             'avg_expiration_rate': avg_expiration_rate,
             'final_served_to_expired_ratio': self.served_to_expired_ratio[-1] if self.served_to_expired_ratio else 0.0,
+            'avg_utilization': avg_utilization,
+            'utilization_variance': utilization_variance,
         }
 
 
@@ -521,6 +528,11 @@ def format_summary_statistics(simulation, time_series) -> str:
     else:
         summary = get_simulation_summary(simulation)
     
+    # Calculate utilization display
+    avg_util = summary.get('avg_utilization', 0)
+    util_var = summary.get('utilization_variance', 0)
+    util_display = f"{avg_util:.1%} (var: {util_var:.2f})" if util_var is not None else f"{avg_util:.1%}"
+    
     # Format text for Window 1
     stats_text = f"""
 SYSTEM EFFICIENCY SUMMARY
@@ -533,7 +545,7 @@ Total Requests:        {summary.get('total_requests', 0)}
 
 Service Level:         {summary.get('final_service_level', 0):.1f}%
 Average Wait Time:     {summary.get('final_avg_wait', 0):.2f} ticks
-System Stability:      Utilization variance tracking
+System Stability:      Utilization {util_display}
 
 Drivers Deployed:      {len(simulation.drivers)}
 """
