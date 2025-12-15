@@ -625,9 +625,7 @@ POLICY & OFFER SUMMARY
 Total Offers Generated:    {summary.get('total_offers_generated', 0)}
 Average Acceptance Rate:   {summary.get('avg_acceptance_rate', 0):.1f}%
 Average Offer Quality:     {summary.get('avg_offer_quality', 0):.4f} (Reward/Time)
-Matching Efficiency:       {summary.get('avg_matching_efficiency', 0):.1f}%
-
-Dispatch Policy:           {policies_used}{actual_policy_display}
+Matching Efficiency:       {summary.get('avg_matching_efficiency', 0):.1f}%{actual_policy_display}
 """
     
     ax.text(0.05, 0.95, summary_text, transform=ax.transAxes,
