@@ -102,21 +102,7 @@ import random
 # ====================================================================
 
 def _assign_random_behaviour() -> "DriverBehaviour":
-    """Randomly assign one of three driver behaviours.
-    
-    Pure function: only creates and returns a behaviour object without side effects.
-    Uses module-level constants from mutation.py for behaviour parameters.
-    Thresholds are only applied during simulation (mutation, decision-making).
-    
-    Returns:
-        DriverBehaviour: One of GreedyDistanceBehaviour, EarningsMaxBehaviour, or LazyBehaviour
-        chosen with equal probability (1/3 each).
-        
-    Example:
-        >>> behaviour = _assign_random_behaviour()
-        >>> type(behaviour).__name__ in ["GreedyDistanceBehaviour", "EarningsMaxBehaviour", "LazyBehaviour"]
-        True
-    """
+    """Randomly assign one of three driver behaviours."""
     choice = random.choice(["greedy", "earnings", "lazy"])
     
     if choice == "greedy":
