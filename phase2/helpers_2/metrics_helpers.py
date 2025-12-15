@@ -249,11 +249,14 @@ class SimulationTimeSeries:
         self.avg_offer_quality.append(avg_quality)
         self.policy_offers_by_type.append(policy_counts)
         
-        # Count accepted offers (offers with accepted status)
-        accepted_count = sum(
-            1 for o in current_tick_offers 
-            if hasattr(o, 'status') and o.status == 'accepted'
-        )
+        # Count accepted offers by checking which requests were assigned
+        # An offer is "accepted" if the request moved from WAITING to ASSIGNED/PICKED
+        accepted_count = 0
+        for offer in current_tick_offers:
+            request = offer.request
+            # If request is no longer WAITING, it was accepted
+            if request.status != 'WAITING':
+                accepted_count += 1
         
         self.offers_accepted.append(accepted_count)
         
@@ -267,12 +270,12 @@ class SimulationTimeSeries:
         
         # Track policy success rates (requests completed by policy)
         policy_success = {}
-        if hasattr(simulation, 'served_history'):
+        if hasattr(simulation, 'requests'):
             served_by_policy = {}
             total_by_policy = {}
             
             for request in simulation.requests:
-                if hasattr(request, 'policy_used'):
+                if hasattr(request, 'policy_used') and request.policy_used:
                     policy = request.policy_used
                     total_by_policy[policy] = total_by_policy.get(policy, 0) + 1
                     

@@ -158,10 +158,11 @@ def collect_offers(simulation, proposals):
         reward = r.pickup.distance_to(r.dropoff)
         off = Offer(d, r, travel_time, reward, created_at=simulation.time, 
                    policy_name=type(simulation.dispatch_policy).__name__)
+        # Record ALL offers created (not just accepted ones)
+        simulation.offer_history.append(off)
+        
         if d.behaviour and d.behaviour.decide(d, off, simulation.time):
             offers.append(off)
-            # Record offer in simulation history for metrics tracking
-            simulation.offer_history.append(off)
     return offers
 
 
