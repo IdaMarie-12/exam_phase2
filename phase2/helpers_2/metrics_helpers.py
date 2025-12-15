@@ -214,10 +214,13 @@ class SimulationTimeSeries:
             self.avg_offer_quality.append(0.0)
             return
         
-        # Get offers from this tick (offers in offer_history with time == simulation.time)
+        # Get offers from the current tick
+        # Since record_tick is called AFTER sim.tick(), we need to look for offers
+        # created at time (simulation.time - 1) since time was already incremented
+        target_time = simulation.time - 1 if simulation.time > 0 else 0
         current_tick_offers = [
             o for o in simulation.offer_history 
-            if hasattr(o, 'created_at') and o.created_at == simulation.time
+            if hasattr(o, 'created_at') and o.created_at == target_time
         ]
         
         # Track offers generated
