@@ -156,7 +156,11 @@ def collect_offers(simulation, proposals):
             continue
         travel_time = d.position.distance_to(r.pickup) / max(d.speed, MIN_SPEED)
         reward = r.pickup.distance_to(r.dropoff)
-        off = Offer(d, r, travel_time, reward)
+        off = Offer(d, r, travel_time, reward, created_at=simulation.time, 
+                   policy_name=type(simulation.dispatch_policy).__name__)
+        # Record ALL offers created (not just accepted ones)
+        simulation.offer_history.append(off)
+        
         if d.behaviour and d.behaviour.decide(d, off, simulation.time):
             offers.append(off)
     return offers

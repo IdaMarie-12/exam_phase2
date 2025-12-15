@@ -180,10 +180,12 @@ def get_driver_history_window(history: list, window: int) -> list:
 
 
 def calculate_average_fare(history: list) -> float | None:
-    """Calculate average fare from history entries. Returns None if empty."""
+    """Calculate average fare from history entries. Returns None if empty or no completed trips.
+    Only counts entries with actual fare values (completed trips, not pickups)."""
     if not history:
         return None
-    fares = [entry.get("fare", 0.0) for entry in history]
+    # Only include entries that have a fare (completed deliveries, not pickups)
+    fares = [entry.get("fare") for entry in history if entry.get("fare") is not None]
     return sum(fares) / len(fares) if fares else None
 
 

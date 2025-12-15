@@ -93,7 +93,7 @@ class RequestGenerator:
         return new_requests
 
     def get_state(self) -> dict:
-        """Get current generator state for serialization/debugging."""
+        """Get current generator state for saving or debugging."""
         return {
             'rate': self.rate,
             'width': self.width,

@@ -17,12 +17,13 @@ class DeliverySimulation:
         """Initialize with drivers, policy, generator, mutation rule, and timeout."""
         if not drivers:
             raise ValueError("DeliverySimulation requires at least one driver")
-        if timeout <0
+        if timeout < 0:
             raise ValueError(f"Timeout must be positive, got {timeout}")
 
         self.time = 0
         self.drivers = drivers
         self.requests = []
+        self.offer_history = []  # Track all offers for metrics
 
         self.dispatch_policy = dispatch_policy
         self.request_generator = request_generator
