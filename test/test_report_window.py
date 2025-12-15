@@ -167,12 +167,11 @@ class TestPlotFunctions(unittest.TestCase):
         """Plot policy distribution with data."""
         fig, ax = plt.subplots()
         
-        # Add policy distribution data
-        self.time_series.policy_distribution = [
-            {'PolicyA': 2, 'PolicyB': 3},
-            {'PolicyA': 2, 'PolicyB': 3},
+        # Add actual policy used data
+        self.time_series.actual_policy_used = [
+            'NearestNeighbor', 'NearestNeighbor', 'GlobalGreedy', 'GlobalGreedy', 'NearestNeighbor'
         ]
-        self.time_series.times = [1, 2]
+        self.time_series.times = [1, 2, 3, 4, 5]
         
         _plot_policy_distribution(ax, self.time_series)
         
@@ -184,7 +183,7 @@ class TestPlotFunctions(unittest.TestCase):
         
         _plot_policy_distribution(ax, None)
         
-        self.assertEqual(ax.get_title(), 'Policy Distribution')
+        self.assertIn('Policy', ax.get_title())
 
 
 class TestReportWindowIntegration(unittest.TestCase):

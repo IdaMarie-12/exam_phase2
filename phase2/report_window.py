@@ -545,33 +545,37 @@ def _plot_rejection_rate(ax, time_series: Optional[SimulationTimeSeries]) -> Non
 
 
 def _plot_policy_distribution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot policy distribution (drivers per policy) as stacked area."""
-    if time_series is None or not time_series.policy_distribution:
+    """Plot actual policy usage over time (NN vs GG for AdaptiveHybrid, or single policy)."""
+    if time_series is None or not time_series.actual_policy_used:
         ax.text(0.5, 0.5, 'No policy data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Policy Distribution')
+        ax.set_title('Policy Adoption Over Time')
         return
     
-    # Collect all policies
-    all_policies = set()
-    for policy_dict in time_series.policy_distribution:
-        all_policies.update(policy_dict.keys())
+    # Count policy usage per tick to create time series
+    from collections import defaultdict
+    policy_counts = defaultdict(lambda: defaultdict(int))
+    
+    # Group actual policies by tick (if available as time-series)
+    # For now, just show the distribution of which policies were used
+    all_policies = sorted(set(time_series.actual_policy_used))
     
     if not all_policies:
-        ax.text(0.5, 0.5, 'No policy distribution data', ha='center', va='center',
+        ax.text(0.5, 0.5, 'No policy data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Policy Distribution')
+        ax.set_title('Policy Adoption Over Time')
         return
     
-    all_policies = sorted(list(all_policies))
-    
-    # Build data for each policy over time
+    # Create running count of policy usage
     policy_series = {policy: [] for policy in all_policies}
-    for policy_dict in time_series.policy_distribution:
-        for policy in all_policies:
-            policy_series[policy].append(policy_dict.get(policy, 0))
+    policy_counts_running = {policy: 0 for policy in all_policies}
     
-    # Plot stacked area
+    for actual_policy in time_series.actual_policy_used:
+        policy_counts_running[actual_policy] += 1
+        for policy in all_policies:
+            policy_series[policy].append(policy_counts_running[policy])
+    
+    # Plot stacked area showing cumulative usage
     ax.stackplot(time_series.times,
                  *[policy_series[p] for p in all_policies],
                  labels=all_policies,
@@ -579,8 +583,8 @@ def _plot_policy_distribution(ax, time_series: Optional[SimulationTimeSeries]) -
                  alpha=0.7)
     
     ax.set_xlabel('Simulation Time (ticks)')
-    ax.set_ylabel('Number of Drivers')
-    ax.set_title('Policy Adoption Over Time')
+    ax.set_ylabel('Cumulative Policy Usage Count')
+    ax.set_title('Policy Adoption Over Time (Actual Sub-Policies)')
     ax.legend(loc='upper left', fontsize=9)
     ax.grid(True, alpha=0.3)
 
