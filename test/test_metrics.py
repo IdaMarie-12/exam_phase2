@@ -45,7 +45,6 @@ class TestSimulationTimeSeriesInitialization(unittest.TestCase):
         # Behaviour tracking
         self.assertEqual(ts.behaviour_distribution, [])
         self.assertEqual(ts.mutation_rate, [])
-        self.assertEqual(ts.behaviour_transitions, [])
         self.assertEqual(ts.stable_ratio, [])
         
         # Mutation root cause

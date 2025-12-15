@@ -41,7 +41,6 @@ class SimulationTimeSeries:
         # Behaviour tracking
         self.behaviour_distribution = []  # List of dicts tracking behaviour counts
         self.mutation_rate = []            # Mutations per 10 ticks (stability indicator)
-        self.behaviour_transitions = []    # List of dicts: transitions from->to per tick
         self.stable_ratio = []             # Ratio of stable drivers (no recent change)
         
         # Mutation root cause tracking
@@ -54,7 +53,6 @@ class SimulationTimeSeries:
         self.policy_names = set()          # Set of all unique policy names used
         self.policy_distribution = []      # List of dicts tracking drivers per policy per tick
         self.avg_offer_quality = []        # Average reward/time ratio per tick
-        self.offer_quality_distribution = []  # List of quality values for distribution analysis
         
         # Internal state tracking
         self._previous_behaviours = {}     # Map of driver_id -> behaviour_type
@@ -177,7 +175,6 @@ class SimulationTimeSeries:
         # Record metrics
         self.behaviour_distribution.append(dict(behaviour_counts))
         self.mutation_rate.append(mutation_rate)
-        self.behaviour_transitions.append(dict(transitions))
         self.stable_ratio.append(stable_ratio)
         self.mutation_reasons.append(self._mutation_reason_counts.copy())
         
@@ -218,7 +215,6 @@ class SimulationTimeSeries:
             self.offer_acceptance_rate.append(0.0)
             self.policy_distribution.append({})
             self.avg_offer_quality.append(0.0)
-            self.offer_quality_distribution.append([])
             return
         
         # Get offers from the current tick
@@ -260,7 +256,6 @@ class SimulationTimeSeries:
             acceptance_rate = 0.0
         
         self.avg_offer_quality.append(avg_quality)
-        self.offer_quality_distribution.append(quality_list)
         self.offer_acceptance_rate.append(acceptance_rate)
         self.policy_distribution.append(dict(policy_driver_counts))
     
@@ -275,7 +270,6 @@ class SimulationTimeSeries:
             'utilization': self.utilization,
             'behaviour_distribution': self.behaviour_distribution,
             'mutation_rate': self.mutation_rate,
-            'behaviour_transitions': self.behaviour_transitions,
             'stable_ratio': self.stable_ratio,
             'mutation_reasons': self.mutation_reasons,
             'offers_generated': self.offers_generated,
