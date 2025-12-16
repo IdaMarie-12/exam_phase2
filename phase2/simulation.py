@@ -43,6 +43,7 @@ class DeliverySimulation:
 
     # ================================================================
     # MAIN TICK (9-phase orchestration)
+    # ================================================================
 
     def tick(self):
         """Run one simulation tick (9 phases): generate, expire, propose, collect, resolve, assign, move, mutate, increment time."""
@@ -68,6 +69,7 @@ class DeliverySimulation:
 
     # ================================================================
     # Statistics and Snapshots
+    # ================================================================
 
     def get_snapshot(self):
         """Returns JSON-serializable state including driver positions, requests, and metrics."""

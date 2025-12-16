@@ -103,10 +103,7 @@ if __name__ == "__main__":
     # Run GUI
     main(_backend)
 
-    # ====================================================================
-    # POST-SIMULATION REPORTING
-    # ====================================================================
-    # After GUI closes, display post-simulation metrics and plots
+    # Post-simulation reporting
     try:
         from phase2.adapter import get_simulation, get_time_series
         from phase2.report_window import generate_report
@@ -115,29 +112,14 @@ if __name__ == "__main__":
         time_series = get_time_series()
         
         if sim is not None and time_series is not None:
-            print("\n" + "=" * 60)
-            print("GENERATING POST-SIMULATION REPORT")
-            print("=" * 60)
-            print(f"Simulation ticks: {sim.time}")
-            print(f"Requests served: {sim.served_count}")
-            print(f"Requests expired: {sim.expired_count}")
-            print(f"Time-series data points: {len(time_series.times)}")
-            print("=" * 60 + "\n")
-            
-            try:
-                generate_report(sim, time_series)
-            except RuntimeError as e:
-                print(f"Could not generate plots: {e}")
-                print("Install matplotlib to view plots: pip install matplotlib\n")
+            generate_report(sim, time_series)
         else:
             print("\nNo simulation data available for reporting.")
-            if sim is None:
-                print("  - Simulation object: None")
-            if time_series is None:
-                print("  - Time-series data: None")
-    except ImportError as ie:
-        # Phase 2 or reporting not available - skip reporting
-        print(f"Reporting skipped: {ie}")
+    except ImportError:
+        pass  # Phase 2 not available - skip reporting
+    except RuntimeError as e:
+        print(f"Could not generate plots: {e}")
+        print("Install matplotlib to view plots: pip install matplotlib\n")
     except Exception as e:
         print(f"Error generating report: {e}")
         import traceback
