@@ -466,6 +466,42 @@ class TestWindow3DataIntegrity(unittest.TestCase):
             'stagnation_exploration': 0
         }
         self.assertEqual(ts._mutation_reason_counts, expected)
+    
+    def test_format_earnings_statistics_with_drivers(self):
+        """format_earnings_statistics generates text with driver data."""
+        from phase2.helpers_2.metrics_helpers import format_earnings_statistics
+        
+        sim = MockSimulation(num_drivers=3)
+        # Set some earnings
+        sim.drivers[0].earnings = 100.0
+        sim.drivers[1].earnings = 150.0
+        sim.drivers[2].earnings = 200.0
+        sim.earnings_by_behaviour = {
+            'GreedyDistanceBehaviour': [100.0, 150.0, 200.0]
+        }
+        
+        text = format_earnings_statistics(sim)
+        
+        # Verify key information is included
+        self.assertIn('EARNINGS SUMMARY', text)
+        self.assertIn('Total Fleet Earnings:', text)
+        self.assertIn('450', text)  # 100 + 150 + 200
+        self.assertIn('Drivers:', text)
+        self.assertIn('Avg per Driver:', text)
+    
+    def test_format_earnings_statistics_no_drivers(self):
+        """format_earnings_statistics handles no drivers gracefully."""
+        from phase2.helpers_2.metrics_helpers import format_earnings_statistics
+        
+        sim = MockSimulation(num_drivers=0)
+        sim.drivers = []
+        sim.earnings_by_behaviour = {}
+        
+        text = format_earnings_statistics(sim)
+        
+        # Should still generate text
+        self.assertIn('EARNINGS SUMMARY', text)
+        self.assertIn('No driver data available', text)
 
 
 if __name__ == '__main__':
