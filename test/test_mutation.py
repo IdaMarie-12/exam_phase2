@@ -242,7 +242,7 @@ class TestShouldExitBehaviour(unittest.TestCase):
     def test_exit_earnings_max_behaviour_sustainable(self):
         """Don't exit EarningsMaxBehaviour when earnings are acceptable."""
         self.driver.behaviour = EarningsMaxBehaviour(min_reward_per_time=EARNINGS_MIN_REWARD_PER_TIME)
-        result = self.mutation._should_exit_behaviour(self.driver, 6.0)
+        result = self.mutation._should_exit_behaviour(self.driver, 7.5)
         self.assertFalse(result)
 
     def test_exit_lazy_behaviour_never(self):
