@@ -265,22 +265,23 @@ class SimulationTimeSeries:
         }
         
         for entry in rule.mutation_history:
-            reason = entry.get('reason', '')
+            reason = entry.get('reason', '').lower()
             
             # Normalize reason strings to standard keys
-            # Handle both short and long format reason names
-            if 'performance_low_earnings' in reason:
+            # Direct matching to standardized reason names
+            if reason == 'performance_low_earnings':
                 reason_counts['performance_low_earnings'] += 1
-            elif 'performance_high_earnings' in reason:
+            elif reason == 'performance_high_earnings':
                 reason_counts['performance_high_earnings'] += 1
-            elif 'stagnation_exploration' in reason:
+            elif reason == 'stagnation_exploration':
                 reason_counts['stagnation_exploration'] += 1
-            elif 'exit_greedy' in reason or 'exit_greedydistancebehaviour' in reason:
+            elif reason == 'exit_greedy':
                 reason_counts['exit_greedy'] += 1
-            elif 'exit_earnings' in reason or 'exit_earningsmaxbehaviour' in reason:
+            elif reason == 'exit_earnings':
                 reason_counts['exit_earnings'] += 1
-            elif 'exit_lazy' in reason or 'exit_lazybehaviour' in reason:
+            elif reason == 'exit_lazy':
                 reason_counts['exit_lazy'] += 1
+            # else: reason not recognized, skip it
         
         self._mutation_reason_counts = reason_counts
     
@@ -497,7 +498,9 @@ class SimulationTimeSeries:
         
         total_requests = self.served[-1] + self.expired[-1]
         total_mutations = self._total_mutations
-        avg_mutation_rate = sum(self.mutation_rate) / len(self.mutation_rate) if self.mutation_rate else 0.0
+        # Calculate average mutation rate directly from actual mutations per tick
+        # (not from pre-averaged mutation_rate list to avoid double-averaging)
+        avg_mutation_rate = sum(self.mutations_per_tick) / len(self.mutations_per_tick) if self.mutations_per_tick else 0.0
         final_stable_ratio = self.stable_ratio[-1] if self.stable_ratio else 0.0
         
         # Calculate offer metrics
@@ -608,11 +611,42 @@ def format_behaviour_statistics(simulation, time_series) -> str:
     total_drivers = len(simulation.drivers)
     
     stats_text = "BEHAVIOUR DISTRIBUTION SUMMARY\n" + "=" * 50 + "\n\n"
-    stats_text += f"Total Drivers: {total_drivers}\n\n"
     
-    for behaviour_type, count in sorted(behaviour_counts.items()):
-        percentage = (count / total_drivers * 100) if total_drivers > 0 else 0
-        stats_text += f"  {behaviour_type:20s}: {count:3d} ({percentage:5.1f}%)\n"
+    # Show aggregated behaviour counts across entire simulation
+    if time_series and time_series.behaviour_distribution:
+        # Aggregate all behaviours seen across all ticks
+        all_behaviours = set()
+        for dist_dict in time_series.behaviour_distribution:
+            all_behaviours.update(dist_dict.keys())
+        
+        behaviour_total_counts = {b: 0 for b in all_behaviours}
+        for dist_dict in time_series.behaviour_distribution:
+            for behaviour, count in dist_dict.items():
+                if behaviour in behaviour_total_counts:
+                    behaviour_total_counts[behaviour] += count
+        
+        # Add final state counts
+        for behaviour, count in behaviour_counts.items():
+            if behaviour not in behaviour_total_counts:
+                behaviour_total_counts[behaviour] = 0
+            behaviour_total_counts[behaviour] += count
+        
+        total_behaviour_ticks = sum(behaviour_total_counts.values())
+        stats_text += f"Total Drivers:         {total_drivers}\n"
+        stats_text += f"Total Behaviour-Ticks: {total_behaviour_ticks}\n\n"
+        stats_text += "Behaviour Presence (Aggregated Over Time):\n"
+        
+        for behaviour_type in sorted(behaviour_total_counts.keys()):
+            count = behaviour_total_counts[behaviour_type]
+            percentage = (count / total_behaviour_ticks * 100) if total_behaviour_ticks > 0 else 0
+            stats_text += f"  {behaviour_type:20s}: {count:4d} ({percentage:5.1f}%)\n"
+    else:
+        # Fallback to current state if no time series
+        stats_text += f"Total Drivers: {total_drivers}\n\n"
+        
+        for behaviour_type, count in sorted(behaviour_counts.items()):
+            percentage = (count / total_drivers * 100) if total_drivers > 0 else 0
+            stats_text += f"  {behaviour_type:20s}: {count:3d} ({percentage:5.1f}%)\n"
     
     # Add mutation stats if available
     if time_series and time_series.get_final_summary():

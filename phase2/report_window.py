@@ -228,14 +228,30 @@ def _show_behaviour_window(simulation, time_series: Optional[SimulationTimeSerie
     ax1.set_title('Final Behaviour Distribution')
     
     # Plot 2: Bar chart of ALL possible behaviours (including zeros)
+    # Count how many times each behaviour appeared across entire simulation
     ax2 = fig2.add_subplot(gs[plot_idx, 1])
     all_behaviours_sorted = sorted(list(all_behaviours.union(set(behaviour_counts.keys()))))
-    counts = [behaviour_counts.get(b, 0) for b in all_behaviours_sorted]
+    
+    # For historical overview: count total driver-behaviour instances across all ticks
+    behaviour_total_counts = {b: 0 for b in all_behaviours_sorted}
+    if time_series and time_series.behaviour_distribution:
+        for dist_dict in time_series.behaviour_distribution:
+            for behaviour, count in dist_dict.items():
+                if behaviour in behaviour_total_counts:
+                    behaviour_total_counts[behaviour] += count
+    
+    # For current state: add final behaviour counts (drivers at end of simulation)
+    for behaviour, count in behaviour_counts.items():
+        if behaviour not in behaviour_total_counts:
+            behaviour_total_counts[behaviour] = 0
+        behaviour_total_counts[behaviour] += count
+    
+    counts = [behaviour_total_counts.get(b, 0) for b in all_behaviours_sorted]
     bars = ax2.bar(range(len(all_behaviours_sorted)), counts, color=PLOT_COLOURS[:len(all_behaviours_sorted)])
     ax2.set_xticks(range(len(all_behaviours_sorted)))
     ax2.set_xticklabels(all_behaviours_sorted, rotation=45, ha='right', fontsize=9)
-    ax2.set_ylabel('Number of Drivers')
-    ax2.set_title('Driver Count by Behaviour (All Types)')
+    ax2.set_ylabel('Total Behaviour-Tick Count')
+    ax2.set_title('Behaviour Presence Over Time (Aggregated)')
     ax2.grid(True, alpha=0.3, axis='y')
     
     # Add value labels on bars
@@ -527,19 +543,13 @@ def _plot_rejection_rate(ax, time_series: Optional[SimulationTimeSeries]) -> Non
 
 
 def _plot_policy_distribution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot actual policy usage over time (NN vs GG for AdaptiveHybrid, or single policy)."""
+    """Plot actual policy usage over time as stacked bar chart (NN vs GG for AdaptiveHybrid, or single policy)."""
     if time_series is None or not time_series.actual_policy_used:
         ax.text(0.5, 0.5, 'No policy data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
         ax.set_title('Policy Adoption Over Time')
         return
     
-    # Count policy usage per tick to create time series
-    from collections import defaultdict
-    policy_counts = defaultdict(lambda: defaultdict(int))
-    
-    # Group actual policies by tick (if available as time-series)
-    # For now, just show the distribution of which policies were used
     all_policies = sorted(set(time_series.actual_policy_used))
     
     if not all_policies:
@@ -548,27 +558,47 @@ def _plot_policy_distribution(ax, time_series: Optional[SimulationTimeSeries]) -
         ax.set_title('Policy Adoption Over Time')
         return
     
-    # Create running count of policy usage
-    policy_series = {policy: [] for policy in all_policies}
-    policy_counts_running = {policy: 0 for policy in all_policies}
+    # Bin the time series into time windows for bar chart
+    bin_size = 50 if len(time_series.times) > 100 else max(10, len(time_series.times) // 10)
     
-    for actual_policy in time_series.actual_policy_used:
-        policy_counts_running[actual_policy] += 1
+    # Create bins
+    time_bins = []
+    policy_counts_per_bin = {policy: [] for policy in all_policies}
+    
+    # Find max time and create bin edges
+    max_time = max(time_series.times) if time_series.times else 100
+    bin_edges = list(range(0, int(max_time) + bin_size, bin_size))
+    
+    # Count policies in each bin
+    for i in range(len(bin_edges) - 1):
+        bin_start = bin_edges[i]
+        bin_end = bin_edges[i + 1]
+        time_bins.append(f"{bin_start}-{bin_end}")
+        
+        # Count policies in this time window
         for policy in all_policies:
-            policy_series[policy].append(policy_counts_running[policy])
+            count = sum(1 for t, p in zip(time_series.times, time_series.actual_policy_used) 
+                       if bin_start <= t < bin_end and p == policy)
+            policy_counts_per_bin[policy].append(count)
     
-    # Plot stacked area showing cumulative usage
-    ax.stackplot(time_series.times,
-                 *[policy_series[p] for p in all_policies],
-                 labels=all_policies,
-                 colors=PLOT_COLOURS[:len(all_policies)],
-                 alpha=0.7)
+    # Create stacked bar chart
+    x_pos = range(len(time_bins))
+    bottom = [0] * len(time_bins)
     
-    ax.set_xlabel('Simulation Time (ticks)')
-    ax.set_ylabel('Cumulative Policy Usage Count')
-    ax.set_title('Policy Adoption Over Time (Actual Sub-Policies)')
+    for policy_idx, policy in enumerate(all_policies):
+        color = PLOT_COLOURS[policy_idx % len(PLOT_COLOURS)]
+        ax.bar(x_pos, policy_counts_per_bin[policy], bottom=bottom, 
+               label=policy, color=color, alpha=0.8)
+        # Update bottom for next policy
+        bottom = [bottom[i] + policy_counts_per_bin[policy][i] for i in range(len(time_bins))]
+    
+    ax.set_xlabel('Simulation Time Window (ticks)')
+    ax.set_ylabel('Policy Usage Count')
+    ax.set_title('Policy Adoption Over Time (Stacked by Time Window)')
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(time_bins, rotation=45, ha='right', fontsize=9)
     ax.legend(loc='upper left', fontsize=9)
-    ax.grid(True, alpha=0.3)
+    ax.grid(True, alpha=0.3, axis='y')
 
 
 def _plot_policy_offer_summary(ax, simulation, time_series: Optional[SimulationTimeSeries]) -> None:
