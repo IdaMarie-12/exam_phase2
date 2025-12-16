@@ -269,7 +269,13 @@ class HybridMutation(MutationRule):
         # EXIT CONDITION: Check if driver should leave current behaviour
         if self._should_exit_behaviour(driver, avg):
             # Exit current behaviour by resetting to neutral LazyBehaviour
-            reason = f"exit_{old_behaviour_name.lower()}"
+            # Standardize reason to one of: exit_greedy, exit_earnings, exit_lazy
+            if "Greedy" in old_behaviour_name:
+                reason = "exit_greedy"
+            elif "Earnings" in old_behaviour_name:
+                reason = "exit_earnings"
+            else:
+                reason = "exit_lazy"
             driver.behaviour = LazyBehaviour(idle_ticks_needed=LAZY_IDLE_TICKS_NEEDED)
             self._track_transition(old_behaviour_name, "LazyBehaviour")
             self._record_detailed_mutation(driver.id, time, old_behaviour_name, "LazyBehaviour", reason, avg)
