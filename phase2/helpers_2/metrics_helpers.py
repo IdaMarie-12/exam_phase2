@@ -501,14 +501,12 @@ class SimulationTimeSeries:
         # Calculate average mutation rate directly from actual mutations per tick
         # (not from pre-averaged mutation_rate list to avoid double-averaging)
         avg_mutation_rate = sum(self.mutations_per_tick) / len(self.mutations_per_tick) if self.mutations_per_tick else 0.0
-        final_stable_ratio = self.stable_ratio[-1] if self.stable_ratio else 0.0
         
         # Calculate offer metrics
         total_offers_generated = sum(self.offers_generated) if self.offers_generated else 0
         avg_offer_quality = sum(self.avg_offer_quality) / len(self.avg_offer_quality) if self.avg_offer_quality else 0.0
         avg_acceptance_rate = sum(self.offer_acceptance_rate) / len(self.offer_acceptance_rate) if self.offer_acceptance_rate else 0.0
-        
-        # Count driver mutation frequency distribution
+                # Count driver mutation frequency distribution
         mutation_freq_dist = Counter(self.driver_mutation_freq.values())
         
         # Calculate queue and dispatch metrics
@@ -547,7 +545,6 @@ class SimulationTimeSeries:
             'total_requests': total_requests,
             'total_behaviour_mutations': total_mutations,
             'avg_mutation_rate': avg_mutation_rate,
-            'final_stable_ratio': final_stable_ratio,
             'entry_performance_based': entry_performance_based,
             'entry_stagnation_exploration': entry_stagnation_exploration,
             'exit_safety_valve': exit_safety_valve,
@@ -617,57 +614,62 @@ Drivers Deployed:      {len(simulation.drivers)}
 
 
 def format_behaviour_statistics(simulation, time_series) -> str:
-    """Format behaviour distribution statistics as text."""
+    """Format behaviour distribution and earnings summary as text."""
     behaviour_counts = get_behaviour_distribution(simulation)
     total_drivers = len(simulation.drivers)
     
-    stats_text = "BEHAVIOUR DISTRIBUTION SUMMARY\n" + "=" * 50 + "\n\n"
+    stats_text = "BEHAVIOUR & EARNINGS\n" + "=" * 50 + "\n\n"
     
-    # Show aggregated behaviour counts across entire simulation
-    if time_series and time_series.behaviour_distribution:
-        # Aggregate all behaviours seen across all ticks
-        all_behaviours = set()
-        for dist_dict in time_series.behaviour_distribution:
-            all_behaviours.update(dist_dict.keys())
-        
-        behaviour_total_counts = {b: 0 for b in all_behaviours}
-        for dist_dict in time_series.behaviour_distribution:
-            for behaviour, count in dist_dict.items():
-                if behaviour in behaviour_total_counts:
-                    behaviour_total_counts[behaviour] += count
-        
-        # Add final state counts
-        for behaviour, count in behaviour_counts.items():
-            if behaviour not in behaviour_total_counts:
-                behaviour_total_counts[behaviour] = 0
-            behaviour_total_counts[behaviour] += count
-        
-        total_behaviour_ticks = sum(behaviour_total_counts.values())
-        stats_text += f"Total Drivers:         {total_drivers}\n"
-        stats_text += f"Total Behaviour-Ticks: {total_behaviour_ticks}\n\n"
-        stats_text += "Behaviour Presence (Aggregated Over Time):\n"
-        
-        for behaviour_type in sorted(behaviour_total_counts.keys()):
-            count = behaviour_total_counts[behaviour_type]
-            percentage = (count / total_behaviour_ticks * 100) if total_behaviour_ticks > 0 else 0
-            stats_text += f"  {behaviour_type:20s}: {count:4d} ({percentage:5.1f}%)\n"
-    else:
-        # Fallback to current state if no time series
-        stats_text += f"Total Drivers: {total_drivers}\n\n"
-        
-        for behaviour_type, count in sorted(behaviour_counts.items()):
-            percentage = (count / total_drivers * 100) if total_drivers > 0 else 0
-            stats_text += f"  {behaviour_type:20s}: {count:3d} ({percentage:5.1f}%)\n"
+    # Show final behaviour distribution
+    stats_text += f"Total Drivers: {total_drivers}\n\n"
+    stats_text += "Final Distribution:\n"
     
-    # Add mutation stats if available
-    if time_series and time_series.get_final_summary():
-        summary = time_series.get_final_summary()
-        stats_text += f"\nMutation Summary:\n"
-        stats_text += f"  Total Mutations:       {summary.get('total_behaviour_mutations', 0)}\n"
-        stats_text += f"  Avg Mutation Rate:     {summary.get('avg_mutation_rate', 0):.2f} per tick\n"
-        stats_text += f"  Final Stability:       {summary.get('final_stable_ratio', 0):.1f}% stable\n"
+    for behaviour_type, count in sorted(behaviour_counts.items()):
+        percentage = (count / total_drivers * 100) if total_drivers > 0 else 0
+        stats_text += f"  {behaviour_type:20s}: {count:3d} ({percentage:5.1f}%)\n"
+    
+    # Add earnings summary
+    all_earnings = [driver.earnings for driver in simulation.drivers]
+    if all_earnings:
+        avg_earnings = sum(all_earnings) / len(all_earnings)
+        stats_text += f"\nFleet Earnings:\n"
+        stats_text += f"  Avg per Driver:    ${avg_earnings:,.2f}\n"
+        stats_text += f"  Total:             ${sum(all_earnings):,.2f}\n"
     
     return stats_text
+
+
+def format_earnings_statistics(simulation) -> str:
+    """Format earnings statistics as text."""
+    if not simulation.drivers:
+        return "EARNINGS SUMMARY\n" + "=" * 50 + "\nNo driver data available"
+    
+    # Collect earnings by behaviour
+    earnings_by_behaviour = simulation.earnings_by_behaviour
+    all_earnings = [driver.earnings for driver in simulation.drivers]
+    
+    total_earnings = sum(all_earnings)
+    avg_earnings = total_earnings / len(all_earnings) if all_earnings else 0
+    min_earnings = min(all_earnings) if all_earnings else 0
+    max_earnings = max(all_earnings) if all_earnings else 0
+    
+    earnings_text = "EARNINGS SUMMARY\n" + "=" * 50 + "\n\n"
+    earnings_text += f"Total Fleet Earnings:  ${total_earnings:,.2f}\n"
+    earnings_text += f"Drivers:               {len(all_earnings)}\n"
+    earnings_text += f"Avg per Driver:        ${avg_earnings:,.2f}\n"
+    earnings_text += f"Min Earnings:          ${min_earnings:,.2f}\n"
+    earnings_text += f"Max Earnings:          ${max_earnings:,.2f}\n"
+    earnings_text += f"Range:                 ${max_earnings - min_earnings:,.2f}\n\n"
+    
+    # Show by behaviour if available
+    if earnings_by_behaviour:
+        earnings_text += "By Behaviour:\n"
+        for behaviour, earnings_list in sorted(earnings_by_behaviour.items()):
+            if earnings_list:
+                behaviour_avg = sum(earnings_list) / len(earnings_list)
+                earnings_text += f"  {behaviour:20s}: ${behaviour_avg:,.2f} avg\n"
+    
+    return earnings_text
 
 
 def format_impact_metrics(simulation) -> str:
@@ -687,6 +689,41 @@ def format_impact_metrics(simulation) -> str:
     return impact_text
 
 
+def format_mutation_summary(simulation, time_series) -> str:
+    """Format mutation categories summary with rates as text."""
+    if time_series is None:
+        return "No mutation data available"
+    
+    summary = time_series.get_final_summary()
+    if not summary or 'entry_performance_based' not in summary:
+        return "No mutation data available"
+    
+    entry_perf = summary.get('entry_performance_based', 0)
+    entry_stag = summary.get('entry_stagnation_exploration', 0)
+    exit_safe = summary.get('exit_safety_valve', 0)
+    total_mutations = entry_perf + entry_stag + exit_safe
+    
+    avg_rate = summary.get('avg_mutation_rate', 0)
+    
+    mut_text = "MUTATION SUMMARY\n" + "=" * 50 + "\n\n"
+    mut_text += f"Total Mutations:       {total_mutations}\n"
+    mut_text += f"Avg Mutation Rate:     {avg_rate:.2f} per tick\n\n"
+    mut_text += "By Category:\n"
+    
+    if total_mutations > 0:
+        perf_pct = (entry_perf / total_mutations * 100)
+        stag_pct = (entry_stag / total_mutations * 100)
+        safe_pct = (exit_safe / total_mutations * 100)
+        
+        mut_text += f"  Perf-Based Entry:    {entry_perf} ({perf_pct:5.1f}%)\n"
+        mut_text += f"  Stag-Based Entry:    {entry_stag} ({stag_pct:5.1f}%)\n"
+        mut_text += f"  Exit Safety Valve:   {exit_safe} ({safe_pct:5.1f}%)\n"
+    else:
+        mut_text += "  No mutations occurred\n"
+    
+    return mut_text
+
+
 def format_mutation_rule_info(simulation) -> str:
     """Format mutation rule configuration as text."""
     if not hasattr(simulation, 'mutation_rule') or simulation.mutation_rule is None:
@@ -695,23 +732,90 @@ def format_mutation_rule_info(simulation) -> str:
     rule = simulation.mutation_rule
     rule_type = rule.__class__.__name__
     
-    rule_text = f"MUTATION RULE: {rule_type}\n" + "=" * 50 + "\n\n"
-    
-    if rule_type == "HybridMutation":
-        rule_text += "Trigger Conditions & Thresholds:\n"
-        if hasattr(rule, 'low_threshold'):
-            rule_text += f"  • Low Earnings:    {rule.low_threshold:.2f}\n"
-        if hasattr(rule, 'high_threshold'):
-            rule_text += f"  • High Earnings:   {rule.high_threshold:.2f}\n"
-        if hasattr(rule, 'cooldown_ticks'):
-            rule_text += f"  • Mutation Cooldown: {rule.cooldown_ticks} ticks\n"
-        if hasattr(rule, 'exploration_prob'):
-            rule_text += f"  • Exploration Prob: {rule.exploration_prob:.0%}\n"
-        if hasattr(rule, 'greedy_exit_threshold'):
-            rule_text += f"  • Greedy Exit:   {rule.greedy_exit_threshold:.2f}\n"
-        if hasattr(rule, 'earnings_max_exit_threshold'):
-            rule_text += f"  • EarningsMax Exit: {rule.earnings_max_exit_threshold:.2f}\n"
-    else:
-        rule_text += f"Configuration:\n  • Type: {rule_type}\n"
+    rule_text = f"MUTATION RULE CONFIGURATION\n" + "=" * 50 + "\n\n"
+    rule_text += f"Rule Type: {rule_type}\n"
     
     return rule_text
+
+
+def format_policy_offer_summary(simulation, time_series) -> str:
+    """Format policy and offer effectiveness summary (without sub-policy details)."""
+    if not time_series:
+        return "No offer/policy data available"
+    
+    summary = time_series.get_final_summary()
+    
+    summary_text = "POLICY & OFFER EFFECTIVENESS\n" + "=" * 50 + "\n\n"
+    summary_text += f"Total Offers Generated:  {summary.get('total_offers_generated', 0)}\n"
+    summary_text += f"Acceptance Rate:         {summary.get('avg_acceptance_rate', 0):.1f}%\n"
+    summary_text += f"Offer Quality:           {summary.get('avg_offer_quality', 0):.4f}\n"
+    summary_text += f"Matching Efficiency:     {summary.get('avg_matching_efficiency', 0):.1f}%\n"
+    
+    return summary_text
+
+
+def _format_behaviour_earnings_summary(simulation, time_series) -> str:
+    """Combined summary of behaviour distribution, earnings, and distribution stats."""
+    behaviour_counts = get_behaviour_distribution(simulation)
+    total_drivers = len(simulation.drivers)
+    all_earnings = [driver.earnings for driver in simulation.drivers]
+    
+    text = "BEHAVIOUR & EARNINGS SUMMARY\n" + "=" * 50 + "\n\n"
+    
+    # Behaviour distribution
+    text += f"Total Drivers: {total_drivers}\n"
+    text += "Final Distribution:\n"
+    for behaviour_type, count in sorted(behaviour_counts.items()):
+        percentage = (count / total_drivers * 100) if total_drivers > 0 else 0
+        text += f"  {behaviour_type:18s}: {count:2d} ({percentage:5.1f}%)\n"
+    
+    # Earnings
+    if all_earnings:
+        avg_earnings = sum(all_earnings) / len(all_earnings)
+        min_earn = min(all_earnings)
+        max_earn = max(all_earnings)
+        text += f"\nEarnings:\n"
+        text += f"  Total Fleet:       ${sum(all_earnings):,.0f}\n"
+        text += f"  Avg per Driver:    ${avg_earnings:,.0f}\n"
+        text += f"  Range:             ${min_earn:,.0f} - ${max_earn:,.0f}\n"
+    
+    return text
+
+
+def _format_mutation_summary_and_rule(simulation, time_series) -> str:
+    """Combined mutation summary with categories and rule configuration."""
+    if time_series is None:
+        return "No mutation data available"
+    
+    summary = time_series.get_final_summary()
+    if not summary or 'entry_performance_based' not in summary:
+        return "No mutation data available"
+    
+    entry_perf = summary.get('entry_performance_based', 0)
+    entry_stag = summary.get('entry_stagnation_exploration', 0)
+    exit_safe = summary.get('exit_safety_valve', 0)
+    total_mutations = entry_perf + entry_stag + exit_safe
+    avg_rate = summary.get('avg_mutation_rate', 0)
+    
+    text = "MUTATION ANALYSIS\n" + "=" * 50 + "\n\n"
+    text += f"Total Mutations:       {total_mutations}\n"
+    text += f"Avg Mutation Rate:     {avg_rate:.2f} per tick\n\n"
+    
+    text += "By Category:\n"
+    if total_mutations > 0:
+        perf_pct = (entry_perf / total_mutations * 100)
+        stag_pct = (entry_stag / total_mutations * 100)
+        safe_pct = (exit_safe / total_mutations * 100)
+        
+        text += f"  Perf-Based Entry:    {entry_perf} ({perf_pct:5.1f}%)\n"
+        text += f"  Stag-Based Entry:    {entry_stag} ({stag_pct:5.1f}%)\n"
+        text += f"  Exit Safety Valve:   {exit_safe} ({safe_pct:5.1f}%)\n"
+    else:
+        text += "  No mutations occurred\n"
+    
+    # Rule info
+    if hasattr(simulation, 'mutation_rule') and simulation.mutation_rule is not None:
+        rule_type = simulation.mutation_rule.__class__.__name__
+        text += f"\nRule Type: {rule_type}\n"
+    
+    return text

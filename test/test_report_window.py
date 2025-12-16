@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from phase2.report_window import (
     _plot_requests_evolution,
     _plot_service_level_evolution,
+    _plot_request_generation_rate,
     _plot_utilization_evolution,
     _plot_behaviour_distribution_evolution,
     _plot_driver_mutation_frequency,
@@ -32,8 +33,15 @@ class MockSimulation:
                    behaviour=GreedyDistanceBehaviour(10.0))
             for i in range(num_drivers)
         ]
+        # Initialize driver earnings
+        for i, driver in enumerate(self.drivers):
+            driver.earnings = 100.0 + (i * 50.0)  # Vary earnings by driver
+        
         self.requests = []
         self.offer_history = []
+        self.earnings_by_behaviour = {
+            'GreedyDistanceBehaviour': [100.0, 150.0, 200.0, 250.0, 300.0][:num_drivers]
+        }
 
 
 class TestPlotFunctions(unittest.TestCase):
@@ -78,10 +86,19 @@ class TestPlotFunctions(unittest.TestCase):
         
         _plot_service_level_evolution(ax, self.time_series)
         
-        self.assertEqual(ax.get_title(), 'Service Level Evolution (% Served)')
+        self.assertEqual(ax.get_title(), 'System Performance: Service Level, Utilization & Request Generation')
         # Service level should be between 0 and 100%
         ylim = ax.get_ylim()
         self.assertLessEqual(ylim[1], 105)
+    
+    def test_plot_request_generation_rate(self):
+        """Plot request generation rate (supply timeline)."""
+        fig, ax = plt.subplots()
+        
+        _plot_request_generation_rate(ax, self.time_series)
+        
+        self.assertEqual(ax.get_title(), 'Request Generation Timeline')
+        self.assertTrue(len(ax.lines) > 0)
     
     def test_plot_utilization_evolution(self):
         """Plot utilization evolution."""
@@ -172,6 +189,26 @@ class TestReportWindowIntegration(unittest.TestCase):
             self.time_series.record_tick(self.sim)
     
     def tearDown(self):
+        plt.close('all')
+    
+    def test_plot_earnings_by_behaviour(self):
+        """_plot_earnings_by_behaviour plots without error."""
+        from phase2.report_window import _plot_earnings_by_behaviour
+        
+        fig, ax = plt.subplots()
+        # Should not raise exception
+        _plot_earnings_by_behaviour(ax, self.sim)
+        
+        plt.close('all')
+    
+    def test_plot_earnings_distribution(self):
+        """_plot_earnings_distribution creates box plot without error."""
+        from phase2.report_window import _plot_earnings_distribution
+        
+        fig, ax = plt.subplots()
+        # Should not raise exception
+        _plot_earnings_distribution(ax, self.sim)
+        
         plt.close('all')
     
     @patch('matplotlib.pyplot.show')
