@@ -110,7 +110,9 @@ class SimulationTimeSeries:
                     f"SimulationTimeSeries.record_tick() requires: {', '.join(required_attrs)}"
                 )
         
-        self.times.append(simulation.time)
+        # Append time-1 to match the tick number where events actually occurred
+        # (record_tick is called after time increment, so simulation.time is already T+1)
+        self.times.append(simulation.time - 1)
         self.served.append(simulation.served_count)
         self.expired.append(simulation.expired_count)
         self.avg_wait.append(simulation.avg_wait)
