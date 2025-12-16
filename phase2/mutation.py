@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 HYBRID_LOW_EARNINGS_THRESHOLD = 3.0      # Zone: Struggling (switch to Greedy)
 HYBRID_HIGH_EARNINGS_THRESHOLD = 10.0    # Zone: Thriving (switch to EarningsMax)
 HYBRID_GREEDY_EXIT_THRESHOLD = 5.0       # Greedy driver exits at avg fare ≥ 5.0
-HYBRID_EARNINGS_EXIT_THRESHOLD = 6.0     # EarningsMax driver exits at avg fare < 6.0
+HYBRID_EARNINGS_EXIT_THRESHOLD = 7.5     # EarningsMax driver exits at avg fare < 7.5
 HYBRID_COOLDOWN_TICKS = 10               # Minimum ticks between mutations
 HYBRID_STAGNATION_WINDOW = 10            # Evaluate stagnation over last 10 trips
 HYBRID_EXPLORATION_PROBABILITY = 0.3     # 30% chance to explore when stagnating (Greedy/EarningsMax)
