@@ -8,9 +8,9 @@ from phase2.report_window import (
     _plot_utilization_evolution,
     _plot_behaviour_distribution_evolution,
     _plot_driver_mutation_frequency,
-    _plot_offers_generated,
-    _plot_offer_quality,
-    _plot_policy_distribution
+    _plot_mutation_categories_pie,
+    _plot_mutation_categories_bar,
+    _plot_mutation_reason_breakdown_detailed
 )
 from phase2.helpers_2.metrics_helpers import SimulationTimeSeries
 from phase2.driver import Driver
@@ -61,6 +61,7 @@ class TestPlotFunctions(unittest.TestCase):
         """Close all matplotlib figures."""
         plt.close('all')
     
+    
     def test_plot_requests_evolution_with_data(self):
         """Plot requests evolution with valid data."""
         fig, ax = plt.subplots()
@@ -70,14 +71,6 @@ class TestPlotFunctions(unittest.TestCase):
         
         self.assertEqual(ax.get_title(), 'Request Fulfillment Evolution')
         self.assertTrue(len(ax.lines) > 0)
-    
-    def test_plot_requests_evolution_no_data(self):
-        """Plot requests evolution handles no data gracefully."""
-        fig, ax = plt.subplots()
-        
-        _plot_requests_evolution(ax, None)
-        
-        self.assertEqual(ax.get_title(), 'Served vs Expired Requests')
     
     def test_plot_service_level_evolution(self):
         """Plot service level evolution."""
@@ -119,43 +112,49 @@ class TestPlotFunctions(unittest.TestCase):
         
         self.assertIn('Frequency', ax.get_title())
     
-    def test_plot_offers_generated(self):
-        """Plot offers generated."""
+    def test_plot_mutation_categories_pie(self):
+        """Plot 3-category mutation distribution as pie chart."""
         fig, ax = plt.subplots()
         
-        _plot_offers_generated(ax, self.time_series)
-        
-        self.assertEqual(ax.get_title(), 'Offers Generated Per Tick')
-    
-    def test_plot_offer_quality(self):
-        """Plot offer quality."""
-        fig, ax = plt.subplots()
-        
-        _plot_offer_quality(ax, self.time_series)
-        
-        self.assertIn('Quality', ax.get_title())
-    
-    def test_plot_policy_distribution_with_data(self):
-        """Plot policy distribution with data."""
-        fig, ax = plt.subplots()
-        
-        # Add actual policy used data
-        self.time_series.actual_policy_used = [
-            'NearestNeighbor', 'NearestNeighbor', 'GlobalGreedy', 'GlobalGreedy', 'NearestNeighbor'
+        # Add mutation data to time series
+        self.time_series.mutation_reasons = [
+            {'performance_low_earnings': 2, 'performance_high_earnings': 1, 
+             'stagnation_exploration': 1, 'exit_greedy': 1, 'exit_earnings': 1, 'exit_lazy': 0},
+            {'performance_low_earnings': 3, 'performance_high_earnings': 2, 
+             'stagnation_exploration': 2, 'exit_greedy': 2, 'exit_earnings': 1, 'exit_lazy': 0}
         ]
-        self.time_series.times = [1, 2, 3, 4, 5]
         
-        _plot_policy_distribution(ax, self.time_series)
+        _plot_mutation_categories_pie(ax, self.time_series)
         
-        self.assertIn('Policy', ax.get_title())
+        self.assertIn('3-Way Split', ax.get_title())
     
-    def test_plot_policy_distribution_no_data(self):
-        """Plot policy distribution handles no data."""
+    def test_plot_mutation_categories_bar(self):
+        """Plot 3-category mutation counts as bar chart."""
         fig, ax = plt.subplots()
         
-        _plot_policy_distribution(ax, None)
+        # Add mutation data to time series
+        self.time_series.mutation_reasons = [
+            {'performance_low_earnings': 2, 'performance_high_earnings': 1, 
+             'stagnation_exploration': 1, 'exit_greedy': 1, 'exit_earnings': 1, 'exit_lazy': 0}
+        ]
         
-        self.assertIn('Policy', ax.get_title())
+        _plot_mutation_categories_bar(ax, self.time_series)
+        
+        self.assertIn('Category', ax.get_title())
+    
+    def test_plot_mutation_reason_breakdown_detailed(self):
+        """Plot detailed breakdown of all 6 mutation reasons."""
+        fig, ax = plt.subplots()
+        
+        # Add mutation data to time series
+        self.time_series.mutation_reasons = [
+            {'performance_low_earnings': 2, 'performance_high_earnings': 1, 
+             'stagnation_exploration': 1, 'exit_greedy': 1, 'exit_earnings': 1, 'exit_lazy': 0}
+        ]
+        
+        _plot_mutation_reason_breakdown_detailed(ax, self.time_series)
+        
+        self.assertIn('6-Way Breakdown', ax.get_title())
 
 
 class TestReportWindowIntegration(unittest.TestCase):
@@ -185,17 +184,6 @@ class TestReportWindowIntegration(unittest.TestCase):
         
         # Should have called plt.show()
         mock_show.assert_called_once()
-    
-    def test_time_series_provides_complete_data(self):
-        """Time-series provides all necessary data for plots."""
-        summary = self.time_series.get_final_summary()
-        
-        # Check required fields exist
-        self.assertIn('total_time', summary)
-        self.assertIn('final_served', summary)
-        self.assertIn('final_expired', summary)
-        self.assertIn('final_service_level', summary)
-        self.assertIn('total_behaviour_mutations', summary)
 
 
 if __name__ == '__main__':

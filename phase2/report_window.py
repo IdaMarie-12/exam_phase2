@@ -317,103 +317,158 @@ def _plot_behaviour_distribution_evolution(ax, time_series: Optional[SimulationT
 # ====================================================================
 
 def _show_mutation_root_cause_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Display Window 3: Mutation analysis and root causes."""
+    """Display Window 3: Mutation analysis with 3-category focus and 6-reason details."""
     
     fig3 = plt.figure(num=3, figsize=(16, 12))
     fig3.suptitle('Mutation Root Cause Analysis', fontsize=14, fontweight='bold')
     
-    gs = gridspec.GridSpec(3, 1, figure=fig3, hspace=0.50, wspace=0.40, top=0.96, bottom=0.06, left=0.08, right=0.96)
+    gs = gridspec.GridSpec(2, 2, figure=fig3, hspace=0.35, wspace=0.35, top=0.96, bottom=0.06, left=0.08, right=0.96)
     
-    # Plot 1: Cumulative mutation count over time
+    # Plot 1 (Top-Left): 3-Category Pie Chart
     ax1 = fig3.add_subplot(gs[0, 0])
-    _plot_cumulative_mutations(ax1, time_series)
+    _plot_mutation_categories_pie(ax1, time_series)
     
-    # Plot 2: Mutation reasons evolution (stacked area)
-    ax2 = fig3.add_subplot(gs[1, 0])
-    _plot_mutation_reasons_evolution(ax2, time_series)
+    # Plot 2 (Top-Right): 3-Category Bar Chart
+    ax2 = fig3.add_subplot(gs[0, 1])
+    _plot_mutation_categories_bar(ax2, time_series)
     
-    # Plot 3: Driver mutation frequency distribution
-    ax3 = fig3.add_subplot(gs[2, 0])
-    _plot_driver_mutation_frequency(ax3, time_series)
+    # Plot 3 (Bottom-Left): 6-Reason Breakdown
+    ax3 = fig3.add_subplot(gs[1, 0])
+    _plot_mutation_reason_breakdown_detailed(ax3, time_series)
+    
+    # Plot 4 (Bottom-Right): Driver Mutation Frequency
+    ax4 = fig3.add_subplot(gs[1, 1])
+    _plot_driver_mutation_frequency(ax4, time_series)
 
 
-def _plot_cumulative_mutations(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot cumulative mutation count over time."""
-    if time_series is None or not time_series.times or not time_series.mutations_per_tick:
+def _plot_mutation_categories_pie(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot 3-category mutation distribution as pie chart."""
+    if time_series is None:
         ax.text(0.5, 0.5, 'No mutation data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Cumulative Mutations Over Time')
+        ax.set_title('Mutation Categories (3-Way Split)')
         return
     
-    # Calculate cumulative mutations
-    cumulative = []
-    total = 0
-    for mutations in time_series.mutations_per_tick:
-        total += mutations
-        cumulative.append(total)
+    summary = time_series.get_final_summary()
+    if not summary or 'entry_performance_based' not in summary:
+        ax.text(0.5, 0.5, 'No mutation data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Mutation Categories (3-Way Split)')
+        return
     
-    ax.plot(time_series.times, cumulative, linewidth=2.5, color='darkred', marker='o', markersize=3)
-    ax.fill_between(time_series.times, cumulative, alpha=0.2, color='red')
+    categories = {
+        'Performance-Based Entry': summary.get('entry_performance_based', 0),
+        'Stagnation-Based Entry': summary.get('entry_stagnation_exploration', 0),
+        'Exit Safety Valve': summary.get('exit_safety_valve', 0)
+    }
     
-    ax.set_xlabel('Simulation Time (ticks)')
-    ax.set_ylabel('Total Mutations')
-    ax.set_title('Cumulative Mutation Count')
-    ax.grid(True, alpha=0.3)
+    total = sum(categories.values())
+    if total == 0:
+        ax.text(0.5, 0.5, 'No mutations', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Mutation Categories (3-Way Split)')
+        return
+    
+    colors = ['#2ecc71', '#e74c3c', '#f39c12']  # Green, Red, Orange
+    wedges, texts, autotexts = ax.pie(categories.values(), labels=categories.keys(), autopct='%1.1f%%',
+                                        colors=colors, startangle=90, textprops={'fontsize': 10})
+    
+    for autotext in autotexts:
+        autotext.set_color('white')
+        autotext.set_fontweight('bold')
+    
+    ax.set_title('Mutation Categories (3-Way Split)')
 
 
-def _plot_mutation_reasons_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
-    """Plot stacked area of mutation reasons over time."""
-    if time_series is None or not time_series.mutation_reasons or not time_series.times:
+def _plot_mutation_categories_bar(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot 3-category mutation counts as bar chart."""
+    if time_series is None:
+        ax.text(0.5, 0.5, 'No mutation data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Mutation Counts by Category')
+        return
+    
+    summary = time_series.get_final_summary()
+    if not summary or 'entry_performance_based' not in summary:
+        ax.text(0.5, 0.5, 'No mutation data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Mutation Counts by Category')
+        return
+    
+    categories = {
+        'Performance-Based': summary.get('entry_performance_based', 0),
+        'Stagnation-Based': summary.get('entry_stagnation_exploration', 0),
+        'Exit Safety': summary.get('exit_safety_valve', 0)
+    }
+    
+    colors = ['#2ecc71', '#e74c3c', '#f39c12']  # Green, Red, Orange
+    bars = ax.bar(categories.keys(), categories.values(), color=colors, alpha=0.7, edgecolor='black', linewidth=1.5)
+    
+    ax.set_ylabel('Count')
+    ax.set_title('Mutation Counts by Category')
+    ax.grid(True, alpha=0.3, axis='y')
+    
+    # Add value labels on bars
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height,
+                f'{int(height)}', ha='center', va='bottom', fontweight='bold')
+
+
+def _plot_mutation_reason_breakdown_detailed(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot detailed breakdown of all 6 mutation reasons."""
+    if time_series is None:
+        ax.text(0.5, 0.5, 'No mutation data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Mutation Reasons (6-Way Breakdown)')
+        return
+    
+    summary = time_series.get_final_summary()
+    if not summary or 'mutation_reason_breakdown' not in summary:
         ax.text(0.5, 0.5, 'No mutation reason data', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Mutation Reasons Over Time')
+        ax.set_title('Mutation Reasons (6-Way Breakdown)')
         return
     
-    # Collect all possible reasons
-    all_reasons = set()
-    for reason_dict in time_series.mutation_reasons:
-        all_reasons.update(reason_dict.keys())
+    breakdown = summary.get('mutation_reason_breakdown', {})
     
-    if not all_reasons:
-        ax.text(0.5, 0.5, 'No mutation reasons recorded', ha='center', va='center',
-                transform=ax.transAxes, fontsize=10, color='gray')
-        ax.set_title('Mutation Reasons Over Time')
-        return
-    
-    # Format reason names for display
     reason_labels = {
         'performance_low_earnings': 'Low Earnings',
         'performance_high_earnings': 'High Earnings',
+        'stagnation_exploration': 'Stagnation',
         'exit_greedy': 'Exit Greedy',
-        'exit_earnings': 'Exit EarningsMax',
-        'exit_lazy': 'Exit Lazy',
-        'stagnation_exploration': 'Stagnation Exploration'
+        'exit_earnings': 'Exit Earnings',
+        'exit_lazy': 'Exit Lazy'
     }
     
-    all_reasons = sorted(list(all_reasons))
+    # Distinct colors for 6 reasons (different from 3-category scheme)
+    reason_colors = ['#3498db', '#9b59b6', '#1abc9c', '#f1c40f', '#e67e22', '#95a5a6']  # Blue, Purple, Teal, Yellow, Orange, Gray
     
-    # Build data for each reason over time (already cumulative in source)
-    reason_series = {reason: [] for reason in all_reasons}
+    labels = [reason_labels.get(r, r) for r in breakdown.keys()]
+    values = list(breakdown.values())
     
-    for reason_dict in time_series.mutation_reasons:
-        for reason in all_reasons:
-            # reason_dict already contains cumulative count from start
-            count = reason_dict.get(reason, 0)
-            reason_series[reason].append(count)
+    if sum(values) == 0:
+        ax.text(0.5, 0.5, 'No mutations', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Mutation Reasons (6-Way Breakdown)')
+        return
     
-    # Plot stacked area
-    labels = [reason_labels.get(r, r) for r in all_reasons]
-    ax.stackplot(time_series.times,
-                 *[reason_series[r] for r in all_reasons],
-                 labels=labels,
-                 colors=PLOT_COLOURS[:len(all_reasons)],
-                 alpha=0.75)
+    bars = ax.bar(range(len(labels)), values, color=reason_colors, alpha=0.8, edgecolor='black', linewidth=1)
     
-    ax.set_xlabel('Simulation Time (ticks)')
-    ax.set_ylabel('Cumulative Mutations')
-    ax.set_title('Mutation Reasons Over Time (Cumulative Breakdown)')
-    ax.legend(loc='upper left', fontsize=8, ncol=2)
-    ax.grid(True, alpha=0.3)
+    ax.set_xticks(range(len(labels)))
+    ax.set_xticklabels(labels, rotation=45, ha='right', fontsize=9)
+    ax.set_ylabel('Count')
+    ax.set_title('Mutation Reasons (6-Way Breakdown)')
+    ax.grid(True, alpha=0.3, axis='y')
+    
+    # Add value labels on bars
+    for bar in bars:
+        height = bar.get_height()
+        if height > 0:
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{int(height)}', ha='center', va='bottom', fontsize=8, fontweight='bold')
+
+
 
 
 def _plot_driver_mutation_frequency(ax, time_series: Optional[SimulationTimeSeries]) -> None:
