@@ -248,11 +248,11 @@ def _plot_summary_statistics(ax, simulation, time_series: Optional[SimulationTim
 # ====================================================================
 
 def _show_behaviour_window(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
-    """Display Window 2: Behaviour dynamics and earnings."""
+    """Display Window 2: Behaviour Dynamics."""
     
-    # Simple 2x2 grid: Evolution (full) + Earnings Bar + Box + Combined Stats
+    # 2x2 grid: Behaviour Evolution + Requests by Behaviour + Earnings + Summary Stats
     fig2 = plt.figure(num=2, figsize=(16, 12))
-    fig2.suptitle('Behaviour Dynamics & Earnings', fontsize=14, fontweight='bold')
+    fig2.suptitle('Behaviour Dynamics', fontsize=14, fontweight='bold')
     
     gs = gridspec.GridSpec(2, 2, figure=fig2, hspace=0.35, wspace=0.30, top=0.96, bottom=0.06, left=0.08, right=0.96)
     
@@ -268,23 +268,27 @@ def _show_behaviour_window(simulation, time_series: Optional[SimulationTimeSerie
                 ha='center', va='center', fontsize=12)
         return
     
-    # Plot 0: Behaviour distribution evolution (spans top)
-    ax0 = fig2.add_subplot(gs[0, :])
+    # Plot 0: Behaviour distribution evolution - top left
+    ax0 = fig2.add_subplot(gs[0, 0])
     _plot_behaviour_distribution_evolution(ax0, time_series)
     
-    # Plot 1: Earnings by behaviour (bar chart) - bottom left
-    ax1 = fig2.add_subplot(gs[1, 0])
-    _plot_earnings_by_behaviour(ax1, simulation)
+    # Plot 1: Requests handled by behaviour over time - top right
+    ax1 = fig2.add_subplot(gs[0, 1])
+    _plot_requests_by_behaviour_evolution(ax1, time_series)
     
-    # Plot 2: Earnings distribution + combined stats - bottom right
-    ax2 = fig2.add_subplot(gs[1, 1])
-    ax2.axis('off')
+    # Plot 2: Earnings by behaviour (bar chart) - bottom left
+    ax2 = fig2.add_subplot(gs[1, 0])
+    _plot_earnings_by_behaviour(ax2, simulation)
+    
+    # Plot 3: Summary stats - bottom right
+    ax3 = fig2.add_subplot(gs[1, 1])
+    ax3.axis('off')
     
     # Merge behaviour, earnings, and distribution into one cohesive summary
     combined_text = _format_behaviour_earnings_summary(simulation, time_series)
-    ax2.text(0.05, 0.95, combined_text, transform=ax2.transAxes,
+    ax3.text(0.05, 0.95, combined_text, transform=ax3.transAxes,
             fontsize=10, verticalalignment='top', family='monospace',
-            bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
+            bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.7))
 
 
 def _plot_behaviour_distribution_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
@@ -325,6 +329,41 @@ def _plot_behaviour_distribution_evolution(ax, time_series: Optional[SimulationT
     else:
         ax.legend(loc='upper left', fontsize=9)
     
+    ax.grid(True, alpha=0.3)
+
+
+def _plot_requests_by_behaviour_evolution(ax, time_series: Optional[SimulationTimeSeries]) -> None:
+    """Plot cumulative requests handled by each behaviour over time."""
+    if time_series is None or not time_series.times:
+        ax.text(0.5, 0.5, 'No requests data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Requests by Behaviour Evolution')
+        return
+    
+    if not time_series.requests_by_behaviour_cumulative:
+        ax.text(0.5, 0.5, 'No behaviour request data', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10, color='gray')
+        ax.set_title('Requests by Behaviour Evolution')
+        return
+    
+    colours = PLOT_COLOURS
+    colour_idx = 0
+    
+    # Plot line for each behaviour
+    for behaviour_type, requests_list in sorted(time_series.requests_by_behaviour_cumulative.items()):
+        if requests_list:
+            # Align with times
+            start_idx = len(time_series.times) - len(requests_list)
+            aligned_times = time_series.times[start_idx:] if start_idx >= 0 else time_series.times
+            colour = colours[colour_idx % len(colours)]
+            ax.plot(aligned_times, requests_list, linewidth=2, label=behaviour_type.replace('Behaviour', ''),
+                   color=colour, marker='o', markersize=2, alpha=0.8)
+            colour_idx += 1
+    
+    ax.set_xlabel('Simulation Time (ticks)')
+    ax.set_ylabel('Cumulative Requests')
+    ax.set_title('Requests by Behaviour Evolution')
+    ax.legend(loc='upper left', fontsize=9)
     ax.grid(True, alpha=0.3)
 
 

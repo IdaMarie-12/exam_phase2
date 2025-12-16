@@ -78,6 +78,7 @@ class SimulationTimeSeries:
         self.earnings_by_behaviour = defaultdict(list)  # Track avg earnings per behaviour per tick
         self.acceptance_rate_by_behaviour = defaultdict(list)  # Track acceptance rate by behaviour type
         self.behaviour_performance_ratio = []  # Service level by behaviour type per tick
+        self.requests_by_behaviour_cumulative = defaultdict(list)  # Cumulative requests per behaviour per tick
         
         # System load indicators
         self.request_generation_rate = []  # Actual requests generated per tick
@@ -234,6 +235,9 @@ class SimulationTimeSeries:
         self.stable_ratio.append(stable_ratio)
         self.mutation_reasons.append(self._mutation_reason_counts.copy())
         
+        # Track requests handled by each behaviour (cumulative)
+        self._track_requests_by_behaviour(simulation)
+        
         # Update snapshot for next tick's change detection
         self._previous_behaviour_snapshots = current_behaviours.copy()
     
@@ -284,6 +288,16 @@ class SimulationTimeSeries:
             # else: reason not recognized, skip it
         
         self._mutation_reason_counts = reason_counts
+    
+    def _track_requests_by_behaviour(self, simulation) -> None:
+        """Track cumulative requests handled by each behaviour type."""
+        # Get current requests from simulation
+        if not hasattr(simulation, 'requests_by_behaviour'):
+            return
+        
+        # For each behaviour, store its cumulative request count
+        for behaviour_type, count in simulation.requests_by_behaviour.items():
+            self.requests_by_behaviour_cumulative[behaviour_type].append(count)
     
     def _track_offers_and_policies(self, simulation) -> None:
         """
@@ -759,25 +773,28 @@ def _format_behaviour_earnings_summary(simulation, time_series) -> str:
     behaviour_counts = get_behaviour_distribution(simulation)
     total_drivers = len(simulation.drivers)
     all_earnings = [driver.earnings for driver in simulation.drivers]
+    requests_per_behaviour = simulation.requests_by_behaviour
     
-    text = "BEHAVIOUR & EARNINGS SUMMARY\n" + "=" * 50 + "\n\n"
+    text = "BEHAVIOUR PERFORMANCE\n" + "=" * 40 + "\n\n"
     
-    # Behaviour distribution
-    text += f"Total Drivers: {total_drivers}\n"
-    text += "Final Distribution:\n"
+    # Behaviour distribution with requests
+    text += f"Drivers: {total_drivers}\n"
+    text += "─" * 40 + "\n"
     for behaviour_type, count in sorted(behaviour_counts.items()):
         percentage = (count / total_drivers * 100) if total_drivers > 0 else 0
-        text += f"  {behaviour_type:18s}: {count:2d} ({percentage:5.1f}%)\n"
+        requests = requests_per_behaviour.get(behaviour_type, 0)
+        # Shorten behaviour name
+        short_name = behaviour_type.replace('Behaviour', '')
+        text += f"{short_name:15s}: {count} drivers\n"
+        text += f"  Requests: {requests}\n"
     
-    # Earnings
+    # Earnings summary
     if all_earnings:
         avg_earnings = sum(all_earnings) / len(all_earnings)
-        min_earn = min(all_earnings)
-        max_earn = max(all_earnings)
-        text += f"\nEarnings:\n"
-        text += f"  Total Fleet:       ${sum(all_earnings):,.0f}\n"
-        text += f"  Avg per Driver:    ${avg_earnings:,.0f}\n"
-        text += f"  Range:             ${min_earn:,.0f} - ${max_earn:,.0f}\n"
+        text += "\n" + "─" * 40 + "\n"
+        text += "Earnings:\n"
+        text += f"  Total: ${sum(all_earnings):,.0f}\n"
+        text += f"  Avg: ${avg_earnings:,.0f}\n"
     
     return text
 

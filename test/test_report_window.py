@@ -42,6 +42,9 @@ class MockSimulation:
         self.earnings_by_behaviour = {
             'GreedyDistanceBehaviour': [100.0, 150.0, 200.0, 250.0, 300.0][:num_drivers]
         }
+        self.requests_by_behaviour = {
+            'GreedyDistanceBehaviour': 50
+        }
 
 
 class TestPlotFunctions(unittest.TestCase):
