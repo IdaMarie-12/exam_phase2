@@ -120,10 +120,10 @@ class GlobalGreedyPolicy(DispatchPolicy):
 
 
 # ====================================================================
-# Adaptive Hybrid Policy (Binary Selection by Driver-Request Ratio)
+# Policy Manager (Selection by Driver-Request Ratio)
 # ====================================================================
 
-class AdaptiveHybridPolicy(DispatchPolicy):
+class PolicyManager(DispatchPolicy):
     """Intelligent hybrid dispatch that adapts based on driver-request ratio.
     Strategy:
     - When requests > drivers: Use GlobalGreedy
