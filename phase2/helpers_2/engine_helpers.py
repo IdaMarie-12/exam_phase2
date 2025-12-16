@@ -208,6 +208,9 @@ def handle_pickup(simulation, driver):
 def handle_dropoff(simulation, driver):
     """Completes delivery and records metrics."""
     driver.complete_dropoff(simulation.time)
+    # Track request handled by this driver's behaviour
+    behaviour_type = driver.behaviour.__class__.__name__
+    simulation.requests_by_behaviour[behaviour_type] += 1
     last = driver.history[-1]
     beh = type(driver.behaviour).__name__ if driver.behaviour else "None"
     simulation.earnings_by_behaviour[beh].append(last.get("fare", 0.0))

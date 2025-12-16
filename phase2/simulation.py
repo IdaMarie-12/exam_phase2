@@ -39,6 +39,7 @@ class DeliverySimulation:
         self._wait_samples = []
         self.avg_wait = 0.0
         self.earnings_by_behaviour = defaultdict(list)
+        self.requests_by_behaviour = defaultdict(int)  # Track request count per behaviour
 
 
     # ================================================================
