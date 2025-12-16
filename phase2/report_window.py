@@ -29,10 +29,10 @@ from collections import Counter
 def generate_report(simulation, time_series: Optional[SimulationTimeSeries] = None) -> None:
     """Generate 4 report windows with 15 plots."""
     
-    _show_metrics_window(simulation, time_series)           # Window 1: System Efficiency
-    _show_behaviour_window(simulation, time_series)         # Window 2: Behaviour Dynamics
-    _show_mutation_root_cause_window(simulation, time_series)  # Window 3: Mutation Root Cause
-    _show_policy_offer_window(simulation, time_series)      # Window 4: Policy & Offer Effectiveness
+    _show_policy_offer_window(simulation, time_series)      # Window 1: Policy & Offer Effectiveness
+    _show_mutation_root_cause_window(simulation, time_series)  # Window 2: Mutation Root Cause
+    _show_behaviour_window(simulation, time_series)         # Window 3: Behaviour Dynamics
+    _show_metrics_window(simulation, time_series)           # Window 4: System Efficiency
     
     print("\nReport windows opened. Close the windows to continue.")
     plt.show()
