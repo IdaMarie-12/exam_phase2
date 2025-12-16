@@ -5,7 +5,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from phase2.policies import DispatchPolicy, NearestNeighborPolicy, GlobalGreedyPolicy, AdaptiveHybridPolicy
+from phase2.policies import DispatchPolicy, NearestNeighborPolicy, GlobalGreedyPolicy, PolicyManager
 from phase2.driver import Driver, IDLE, TO_PICKUP
 from phase2.request import Request, WAITING, PICKED
 from phase2.point import Point
@@ -224,12 +224,12 @@ class TestPolicyComparison(unittest.TestCase):
         self.assertEqual(gg.assign([], [], 0), [])
 
 
-class TestAdaptiveHybridPolicy(unittest.TestCase):
-    """Test AdaptiveHybridPolicy that diversifies based on driver-request ratio."""
+class TestPolicyManager(unittest.TestCase):
+    """Test PolicyManager that diversifies based on driver-request ratio."""
 
     def setUp(self):
         """Create policy instance for tests."""
-        self.policy = AdaptiveHybridPolicy()
+        self.policy = PolicyManager()
 
     def test_empty_inputs_returns_empty(self):
         """Empty drivers or requests returns empty list."""

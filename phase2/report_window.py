@@ -613,9 +613,9 @@ def _plot_policy_offer_summary(ax, simulation, time_series: Optional[SimulationT
         # Build policy information
         policies_used = ', '.join(sorted(time_series.policy_names)) if time_series.policy_names else 'None'
         
-        # If AdaptiveHybridPolicy, show which sub-policy was actually used
+        # If PolicyManager, show which sub-policy was actually used
         actual_policy_display = ""
-        if 'AdaptiveHybridPolicy' in time_series.policy_names and summary.get('actual_policy_usage'):
+        if 'PolicyManager' in time_series.policy_names and summary.get('actual_policy_usage'):
             actual_usage = summary.get('actual_policy_usage', {})
             nn_count = actual_usage.get('NearestNeighborPolicy', 0)
             gg_count = actual_usage.get('GlobalGreedyPolicy', 0)
