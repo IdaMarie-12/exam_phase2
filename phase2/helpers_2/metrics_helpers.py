@@ -530,6 +530,14 @@ class SimulationTimeSeries:
         utilization_variance = statistics.variance(self.utilization) if len(self.utilization) > 1 else 0.0
         avg_utilization = sum(self.utilization) / len(self.utilization) if self.utilization else 0.0
         
+        # Calculate 3-category mutation breakdown
+        entry_performance_based = (self._mutation_reason_counts.get('performance_low_earnings', 0) +
+                                   self._mutation_reason_counts.get('performance_high_earnings', 0))
+        entry_stagnation_exploration = self._mutation_reason_counts.get('stagnation_exploration', 0)
+        exit_safety_valve = (self._mutation_reason_counts.get('exit_greedy', 0) +
+                             self._mutation_reason_counts.get('exit_earnings', 0) +
+                             self._mutation_reason_counts.get('exit_lazy', 0))
+        
         return {
             'total_time': self.times[-1],
             'final_served': self.served[-1],
@@ -540,6 +548,9 @@ class SimulationTimeSeries:
             'total_behaviour_mutations': total_mutations,
             'avg_mutation_rate': avg_mutation_rate,
             'final_stable_ratio': final_stable_ratio,
+            'entry_performance_based': entry_performance_based,
+            'entry_stagnation_exploration': entry_stagnation_exploration,
+            'exit_safety_valve': exit_safety_valve,
             'mutation_reason_breakdown': self._mutation_reason_counts.copy(),
             'driver_mutation_frequency': dict(mutation_freq_dist),
             'final_behaviour_distribution': self.behaviour_distribution[-1] if self.behaviour_distribution else {},
