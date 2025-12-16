@@ -8,7 +8,6 @@ from phase2.behaviours import (
     GreedyDistanceBehaviour,
     EarningsMaxBehaviour,
     LazyBehaviour,
-    LAZY_MAX_PICKUP_DISTANCE
 )
 from phase2.point import Point
 

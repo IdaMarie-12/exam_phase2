@@ -1,9 +1,8 @@
 from collections import defaultdict
-from .offer import Offer
 from .helpers_2.engine_helpers import (
     gen_requests, expire_requests, get_proposals, collect_offers,
     resolve_conflicts, assign_requests, move_drivers,
-    handle_pickup, handle_dropoff, mutate_drivers
+    mutate_drivers
 )
 
 EPSILON = 1e-3
