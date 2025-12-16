@@ -3,7 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import unittest
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, patch
 from phase2.simulation import DeliverySimulation
 from phase2.driver import Driver
 from phase2.request import Request

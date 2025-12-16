@@ -1,5 +1,4 @@
 import unittest
-import random
 from phase2.mutation import (
     HybridMutation,
     HYBRID_LOW_EARNINGS_THRESHOLD,
